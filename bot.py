@@ -113,7 +113,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "🤖 Bot is Running! (Smart Unlock System Active)"
+    return "🤖 Bot is Running! (Smart Unlock + Fix Garbage Text v13)"
 
 def run_flask():
     app.run(host='0.0.0.0', port=8080)
@@ -311,7 +311,7 @@ def apply_badge_to_poster(poster_bytes, text):
         return io.BytesIO(poster_bytes)
 
 # ============================================================================
-# 🔥 SMART UNLOCK HTML GENERATOR (HIGH CPM VERSION)
+# 🔥 SMART UNLOCK HTML GENERATOR (FIXED GARBAGE TEXT)
 # ============================================================================
 def generate_html_code(data, links, ad_links_list):
     title = data.get("title") or data.get("name")
@@ -319,6 +319,7 @@ def generate_html_code(data, links, ad_links_list):
     poster = data.get('manual_poster_url') or f"https://image.tmdb.org/t/p/w500{data.get('poster_path')}"
     BTN_TELEGRAM = "https://i.ibb.co/kVfJvhzS/photo-2025-12-23-12-38-56-7587031987190235140.jpg"
 
+    # --- 1. CSS STYLE (Standard String) ---
     style_html = """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
@@ -336,7 +337,6 @@ def generate_html_code(data, links, ad_links_list):
         h2 { color: #00d2ff; margin: 10px 0; font-size: 26px; font-weight: 700; }
         p { text-align: left; color: #ccc; font-size: 14px; line-height: 1.6; margin-bottom: 20px; }
         
-        .dl-container-area { margin-top: 30px; }
         .dl-item { border-bottom: 2px dashed #444; padding-bottom: 20px; margin-bottom: 20px; }
         .dl-link-label {
             display: block; font-size: 18px; font-weight: 600; color: #ffeb3b;
@@ -346,7 +346,6 @@ def generate_html_code(data, links, ad_links_list):
             position: relative; width: 90%; padding: 18px; font-size: 20px; font-weight: bold;
             color: white; text-transform: uppercase; border: none; border-radius: 50px;
             cursor: pointer; outline: none;
-            /* Default RGB Animation */
             background: linear-gradient(90deg, #ff0000, #ff7300, #fffb00, #48ff00, #00ffd5, #002bff, #7a00ff, #ff00c8, #ff0000);
             background-size: 400%; animation: glowing 20s linear infinite;
             box-shadow: 0 0 15px rgba(0,0,0,0.5); transition: all 0.3s;
@@ -354,20 +353,14 @@ def generate_html_code(data, links, ad_links_list):
         }
         .rgb-btn:active { transform: scale(0.95); }
         
-        /* State Styles */
         .btn-loading {
-            background: #555 !important; 
-            cursor: wait !important;
-            animation: none !important;
-            box-shadow: none !important;
+            background: #555 !important; cursor: wait !important;
+            animation: none !important; box-shadow: none !important;
         }
         .btn-ready {
-            background: #00e676 !important; /* Green Color */
-            color: #000 !important;
-            box-shadow: 0 0 20px #00e676 !important;
-            animation: pulse 1.5s infinite !important;
+            background: #00e676 !important; color: #000 !important;
+            box-shadow: 0 0 20px #00e676 !important; animation: pulse 1.5s infinite !important;
         }
-
         @keyframes glowing {
             0% { background-position: 0 0; }
             50% { background-position: 400% 0; }
@@ -378,13 +371,12 @@ def generate_html_code(data, links, ad_links_list):
             50% { transform: scale(1.02); }
             100% { transform: scale(1); }
         }
-
         .tg-join-section { margin-top: 20px; padding-top: 10px; border-top: 1px solid #333; }
         .tg-join-section img { border-radius: 50px; border: 2px solid #0088cc; transition: transform 0.3s; }
-        .tg-join-section img:hover { transform: scale(1.05); }
     </style>
     """
 
+    # --- 2. LINKS HTML LOOP ---
     links_html = ""
     for link in links:
         label = link['label']
@@ -395,69 +387,72 @@ def generate_html_code(data, links, ad_links_list):
             <button class="rgb-btn dl-trigger-btn" data-url="{link['url']}" data-status="init">{btn_text}</button>
         </div>"""
 
-    # 🔥 OWNER LINK INJECTION 🔥
+    # --- 3. PREPARE AD LINKS LIST ---
     final_ad_list = list(ad_links_list)
     if OWNER_AD_LINKS:
         final_ad_list.insert(0, random.choice(OWNER_AD_LINKS))
-
-    # --- SMART UNLOCK JAVASCRIPT ---
-    script_html = f"""
-    <script>
-    const AD_LINKS = {json.dumps(final_ad_list)}; 
     
-    document.querySelectorAll('.dl-trigger-btn').forEach(btn => {{
-        btn.onclick = function() {{
+    ad_links_json = json.dumps(final_ad_list)
+
+    # --- 4. JAVASCRIPT (Using Replacement to avoid f-string errors) ---
+    script_raw = """
+    <script>
+    const AD_LINKS = __AD_LINKS_PLACEHOLDER__; 
+    
+    document.querySelectorAll('.dl-trigger-btn').forEach(btn => {
+        btn.onclick = function() {
             const status = this.getAttribute('data-status');
             const realLink = this.getAttribute('data-url');
 
-            // CASE 1: First Click (Open Ad + Start Timer)
-            if (status === 'init') {{
-                // 1. Open Ad
-                if(AD_LINKS.length > 0) {{
+            // CASE 1: First Click
+            if (status === 'init') {
+                // Open Random Ad
+                if(AD_LINKS.length > 0) {
                     const randomAd = AD_LINKS[Math.floor(Math.random() * AD_LINKS.length)];
                     window.open(randomAd, '_blank');
-                }}
+                }
 
-                // 2. Change Button to "Loading"
-                const originalText = this.innerText;
+                // Change Button
                 this.innerText = "🔄 UNLOCKING LINK...";
                 this.classList.add('btn-loading');
                 this.setAttribute('data-status', 'waiting');
                 
-                // 3. Wait 4 Seconds (Fake Verification)
+                // Timer
                 let timeLeft = 4;
-                const timer = setInterval(() => {{
+                const timer = setInterval(() => {
                     timeLeft--;
-                    if (timeLeft <= 0) {{
+                    if (timeLeft <= 0) {
                         clearInterval(timer);
-                        // 4. Make Button Ready
                         this.classList.remove('btn-loading');
                         this.classList.add('btn-ready');
                         this.innerText = "✅ CLICK TO OPEN";
                         this.setAttribute('data-status', 'ready');
-                    }} else {{
+                    } else {
                         this.innerText = "🔄 WAIT " + timeLeft + "s...";
-                    }}
-                }}, 1000);
-            }} 
-            // CASE 2: Second Click (Already Verified)
-            else if (status === 'ready') {{
+                    }
+                }, 1000);
+            } 
+            // CASE 2: Second Click
+            else if (status === 'ready') {
                 window.location.href = realLink;
-            }}
-        }}
-    }});
+            }
+        }
+    });
     </script>
     """
+    
+    # Safe Replacement
+    script_html = script_raw.replace("__AD_LINKS_PLACEHOLDER__", ad_links_json)
 
+    # --- 5. COMBINE ALL ---
     return f"""
-    <!-- Bot Generated Post -->
+    <!-- Bot Generated Post (Smart Unlock) -->
     {style_html}
     <div class="main-card">
         <img src="{poster}" class="poster-img">
         <h2>{title}</h2>
         <p>{overview}</p>
         
-        <!-- Small Hint for User -->
         <div style="background: rgba(0, 255, 255, 0.1); padding: 10px; border-radius: 8px; font-size: 13px; color: #00e676; margin-bottom: 20px;">
             ℹ️ <b>Note:</b> Click 'Download' & wait 4 seconds to unlock the server.
         </div>
@@ -574,7 +569,7 @@ except Exception as e:
 async def start_cmd(client, message):
     user_conversations.pop(message.from_user.id, None)
     await message.reply_text(
-        "🎬 **Movie & Series Bot (Smart Unlock & Profit v12)**\n\n"
+        "🎬 **Movie & Series Bot (Smart Unlock & Profit v13)**\n\n"
         "⚡ `/post <Link or Name>` - Auto Post\n"
         "✍️ `/manual` - Custom Manual Post\n"
         "🛠 `/mysettings` - View Your Ad Links\n"
@@ -824,5 +819,5 @@ if __name__ == "__main__":
     ping_thread.daemon = True
     ping_thread.start()
     
-    print("🚀 Bot Started (Smart Unlock & Profit v12)!")
+    print("🚀 Bot Started (Smart Unlock & Profit v13)!")
     bot.run()
