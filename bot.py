@@ -127,7 +127,7 @@ def keep_alive_pinger():
             time.sleep(600)
 
 # ============================================================================
-# 🔥 AUTOMATIC RESOURCE DOWNLOADER (Updated Logic)
+# 🔥 AUTOMATIC RESOURCE DOWNLOADER
 # ============================================================================
 def setup_resources():
     font_name = "kalpurush.ttf"
@@ -167,57 +167,74 @@ def get_font(size=60, bold=False):
         logger.error(f"Font Load Error: {e}")
         return ImageFont.load_default()
 
-# ---- HELPER: UPLOAD TO CATBOX & TELEGRAPH (Dual Server) ----
-def upload_to_catbox_bytes(img_bytes):
-    # ১. প্রথমে Catbox এ চেষ্টা করবে (Primary)
+# ====================================================================
+# 🔥 POWERFUL MULTI-SERVER UPLOAD FUNCTION (UPDATED)
+# ====================================================================
+
+def upload_image_core(file_content):
+    """
+    Attempts to upload to: Graph.org -> Catbox -> Envs.sh
+    """
+    
+    # 1. Try Graph.org (Telegraph) - Fastest & No Block
+    try:
+        url = "https://graph.org/upload"
+        files = {'file': ('image.jpg', file_content, 'image/jpeg')}
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.post(url, files=files, headers=headers, timeout=5)
+        if response.status_code == 200:
+            json_data = response.json()
+            link = "https://graph.org" + json_data[0]["src"]
+            logger.info(f"✅ Uploaded to Graph.org: {link}")
+            return link
+    except Exception as e:
+        logger.warning(f"⚠️ Graph.org Failed: {e}")
+
+    # 2. Try Catbox.moe (Backup)
     try:
         url = "https://catbox.moe/user/api.php"
         data = {"reqtype": "fileupload", "userhash": ""}
-        # BytesIO বা raw bytes নিশ্চিত করা
-        if hasattr(img_bytes, 'read'):
-            img_bytes.seek(0)
-            file_data = img_bytes.read()
-        else:
-            file_data = img_bytes
-
-        files = {"fileToUpload": ("poster.png", file_data, "image/png")}
+        files = {"fileToUpload": ("image.png", file_content, "image/png")}
         headers = {"User-Agent": "Mozilla/5.0"}
-        
-        response = requests.post(url, data=data, files=files, headers=headers, timeout=5)
+        response = requests.post(url, data=data, files=files, headers=headers, timeout=8)
         if response.status_code == 200:
+            logger.info("✅ Uploaded to Catbox")
             return response.text.strip()
     except Exception as e:
-        logger.error(f"Catbox Upload Failed: {e}")
+        logger.warning(f"⚠️ Catbox Failed: {e}")
 
-    # ২. Catbox কাজ না করলে Graph.org (Telegraph) এ আপলোড করবে (Backup)
+    # 3. Try Envs.sh (Emergency Backup)
     try:
-        logger.info("⚠️ Switching to Graph.org upload...")
-        url = "https://graph.org/upload"
-        
-        # ফাইল ডেটা রিসেট (যদি আগে রিড হয়ে থাকে)
-        if hasattr(img_bytes, 'read'):
-            img_bytes.seek(0)
-            file_data = img_bytes.read()
-        else:
-            file_data = img_bytes
-            
-        files = {'file': ('image.jpg', file_data, 'image/jpeg')}
-        response = requests.post(url, files=files, timeout=5)
-        
+        url = "https://envs.sh"
+        files = {'file': ('image.jpg', file_content)}
+        response = requests.post(url, files=files, timeout=10)
         if response.status_code == 200:
-            json_data = response.json()
-            return "https://graph.org" + json_data[0]["src"]
+            logger.info("✅ Uploaded to Envs.sh")
+            return response.text.strip()
     except Exception as e:
-        logger.error(f"Graph.org Upload Failed: {e}")
+        logger.error(f"❌ Envs.sh Failed: {e}")
 
     return None
 
+def upload_to_catbox_bytes(img_bytes):
+    # Wrapper for byte streams
+    try:
+        if hasattr(img_bytes, 'read'):
+            img_bytes.seek(0)
+            data = img_bytes.read()
+        else:
+            data = img_bytes
+        return upload_image_core(data)
+    except Exception as e:
+        logger.error(f"Byte Process Error: {e}")
+        return None
+
 def upload_to_catbox(file_path):
+    # Wrapper for local files
     try:
         with open(file_path, "rb") as f:
-            # ফাইল রিড করে বাইট হিসেবে পাঠানো হচ্ছে
-            file_data = f.read()
-            return upload_to_catbox_bytes(io.BytesIO(file_data))
+            data = f.read()
+        return upload_image_core(data)
     except Exception as e:
         logger.error(f"File Read Error: {e}")
         return None
@@ -347,7 +364,7 @@ def apply_badge_to_poster(poster_bytes, text):
         return io.BytesIO(poster_bytes)
 
 # ============================================================================
-# ---- HTML GENERATOR (UPDATED WITH RULES & PROCESSING DELAY) ----
+# ---- HTML GENERATOR ----
 # ============================================================================
 def generate_html_code(data, links, ad_links_list):
     title = data.get("title") or data.get("name")
@@ -372,7 +389,6 @@ def generate_html_code(data, links, ad_links_list):
         h2 { color: #00d2ff; margin: 10px 0; font-size: 26px; font-weight: 700; }
         p { text-align: left; color: #ccc; font-size: 14px; line-height: 1.6; margin-bottom: 20px; }
         
-        /* RULES BOX STYLE */
         .rules-box {
             background: rgba(255, 235, 59, 0.1); border: 2px dashed #ffeb3b;
             padding: 15px; border-radius: 10px; margin: 20px 0; text-align: left;
@@ -433,37 +449,30 @@ def generate_html_code(data, links, ad_links_list):
             <a href="#" class="dl-real-download-link" target="_blank">✅ CLICK TO OPEN</a>
         </div>"""
 
-    # 🔥 OWNER LINK INJECTION 🔥
+    # 🔥 OWNER LINK INJECTION
     final_ad_list = list(ad_links_list)
     if OWNER_AD_LINKS:
         final_ad_list.insert(0, random.choice(OWNER_AD_LINKS))
 
-    # --- UPDATED JAVASCRIPT WITH PROCESSING DELAY ---
     script_html = f"""
     <script>
     const AD_LINKS = {json.dumps(final_ad_list)}; 
     document.querySelectorAll('.dl-trigger-btn').forEach(btn => {{
         btn.onclick = function() {{
-            // 1. Show Processing
             let originalText = this.innerText;
             this.innerText = "🔄 Processing...";
-            this.disabled = true; // Disable click
+            this.disabled = true;
 
-            // 2. Wait 1.5 Seconds
             setTimeout(() => {{
-                // Restore button
                 this.innerText = originalText;
                 this.disabled = false;
 
-                // 3. Main Logic
                 let count = parseInt(this.getAttribute('data-click-count'));
                 if(count < AD_LINKS.length) {{
-                    // Open Ad
                     window.open(AD_LINKS[count], '_blank');
                     this.setAttribute('data-click-count', count + 1);
                 }} 
                 else {{
-                    // Show Real Link Logic
                     this.style.display = 'none'; 
                     let timerDiv = this.nextElementSibling;
                     let realLink = timerDiv.nextElementSibling;
@@ -482,7 +491,7 @@ def generate_html_code(data, links, ad_links_list):
                         }}
                     }}, 1000);
                 }}
-            }}, 1500); // 1.5s Delay
+            }}, 1500);
         }}
     }});
     </script>
@@ -496,7 +505,6 @@ def generate_html_code(data, links, ad_links_list):
         <h2>{title}</h2>
         <p>{overview}</p>
         
-        <!-- RULES BOX ADDED HERE -->
         <div class="rules-box">
             <div class="rules-title">⚠️ ডাউনলোড করার নিয়ম:</div>
             <div class="rules-text">
@@ -736,14 +744,14 @@ async def text_handler(client, message):
         msg = await message.reply_text("⏳ Processing Image...")
         try:
             photo_path = await message.download()
-            img_url = upload_to_catbox(photo_path)
+            img_url = upload_to_catbox(photo_path) # Uses Multi-Server Logic
             os.remove(photo_path)
             if img_url:
                 convo["details"]["manual_poster_url"] = img_url
                 convo["state"] = "ask_links"
                 buttons = [[InlineKeyboardButton("➕ Add Links", callback_data=f"lnk_yes_{uid}")], [InlineKeyboardButton("🏁 Finish", callback_data=f"lnk_no_{uid}")]]
                 await msg.edit_text("✅ ছবি আপলোড হয়েছে!\n\n🔗 এবার ডাউনলোড লিংক অ্যাড করবেন?", reply_markup=InlineKeyboardMarkup(buttons))
-            else: await msg.edit_text("❌ ইমেজ আপলোড ফেইল হয়েছে।")
+            else: await msg.edit_text("❌ ইমেজ আপলোড ফেইল হয়েছে। (All Servers Failed)")
         except: await msg.edit_text("❌ এরর হয়েছে।")
 
     elif state == "wait_lang":
@@ -868,5 +876,5 @@ if __name__ == "__main__":
     ping_thread.daemon = True
     ping_thread.start()
     
-    print("🚀 Bot Started (Smart Face Detect & Profit v11)!")
+    print("🚀 Bot Started (Smart Face Detect & Power Upload v12)!")
     bot.run()
