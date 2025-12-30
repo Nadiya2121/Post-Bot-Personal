@@ -167,25 +167,35 @@ def get_font(size=60, bold=False):
         logger.error(f"Font Load Error: {e}")
         return ImageFont.load_default()
 
-# ---- HELPER: UPLOAD TO CATBOX ----
+# ---- HELPER: UPLOAD TO CATBOX (WITH FALLBACK) ----
 def upload_to_catbox_bytes(img_bytes):
+    # ১. প্রথমে Catbox এ চেষ্টা করবে
     try:
         url = "https://catbox.moe/user/api.php"
         data = {"reqtype": "fileupload", "userhash": ""}
         files = {"fileToUpload": ("poster.png", img_bytes, "image/png")}
-        response = requests.post(url, data=data, files=files)
+        # কিছু হেডার্স যোগ করা হলো যাতে ব্লক না করে
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
+        
+        response = requests.post(url, data=data, files=files, headers=headers, timeout=10)
         if response.status_code == 200:
             return response.text.strip()
     except Exception as e:
-        logger.error(f"Upload Error: {e}")
-    return None
+        logger.error(f"Catbox Upload Failed: {e}")
 
-def upload_to_catbox(file_path):
+    # ২. Catbox কাজ না করলে Graph.org (Telegraph) এ আপলোড করবে
     try:
-        with open(file_path, "rb") as f:
-            return upload_to_catbox_bytes(f)
-    except: return None
+        logger.info("⚠️ Catbox blocked! Trying Graph.org fallback...")
+        url = "https://graph.org/upload"
+        files = {'file': ('image.jpg', img_bytes, 'image/jpeg')}
+        response = requests.post(url, files=files, timeout=10)
+        if response.status_code == 200:
+            json_data = response.json()
+            return "https://graph.org" + json_data[0]["src"]
+    except Exception as e:
+        logger.error(f"Graph.org Upload Failed: {e}")
 
+    return None
 # ---- TMDB & LINK EXTRACTION ----
 def extract_tmdb_id(text):
     tmdb_match = re.search(r'themoviedb\.org/(movie|tv)/(\d+)', text)
