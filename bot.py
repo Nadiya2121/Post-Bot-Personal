@@ -117,7 +117,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "🤖 Bot is Running! (Fixed Icons & Speed Optimized)"
+    return "🤖 Bot is Running! (With Neon Screenshots)"
 
 def run_flask():
     app.run(host='0.0.0.0', port=8080)
@@ -264,7 +264,8 @@ async def search_tmdb(query):
         return []
 
 async def get_tmdb_details(media_type, media_id):
-    url = f"https://api.themoviedb.org/3/{media_type}/{media_id}?api_key={TMDB_API_KEY}&append_to_response=credits,similar"
+    # 🔥 UPDATED API CALL: Added 'images' to fetch screenshots
+    url = f"https://api.themoviedb.org/3/{media_type}/{media_id}?api_key={TMDB_API_KEY}&append_to_response=credits,similar,images&include_image_language=en,null"
     return await fetch_url(url)
 
 # ---- DPASTE FUNCTION ----
@@ -362,7 +363,7 @@ def apply_badge_to_poster(poster_bytes, text):
         return io.BytesIO(poster_bytes)
 
 # ============================================================================
-# 🔥 OPTIMIZED HTML GENERATOR (Fixed Icons Issue)
+# 🔥 OPTIMIZED HTML GENERATOR (Screenshots + Clear Instructions)
 # ============================================================================
 def generate_html_code(data, links, ad_links_list):
     title = data.get("title") or data.get("name")
@@ -370,50 +371,92 @@ def generate_html_code(data, links, ad_links_list):
     poster = data.get('manual_poster_url') or f"https://image.tmdb.org/t/p/w500{data.get('poster_path')}"
     BTN_TELEGRAM = "https://i.ibb.co/kVfJvhzS/photo-2025-12-23-12-38-56-7587031987190235140.jpg"
 
-    # 🔥 MIX AD LINKS & SHUFFLE (Ensure Rotation)
+    # 🔥 SCREENSHOT LOGIC (Backdrops)
+    ss_html = ""
+    if not data.get('is_manual') and data.get("images"):
+        backdrops = data["images"].get("backdrops", [])
+        count = 0
+        for bd in backdrops:
+            if count >= 4: break
+            # Keep landscape images
+            if bd.get('aspect_ratio', 1.7) > 1.2: 
+                ss_url = f"https://image.tmdb.org/t/p/w780{bd['file_path']}"
+                # Added 'neon-ss' class for styling
+                ss_html += f'<img src="{ss_url}" class="neon-ss" alt="Screenshot">'
+                count += 1
+    
+    ss_section = ""
+    if ss_html:
+        ss_section = f"""
+        <div class="ss-container">
+            <h3 style="color: #ff00de; text-transform: uppercase; margin-bottom: 15px; border-bottom: 2px solid #ff00de; display: inline-block; padding-bottom: 5px;">📸 Screenshots</h3>
+            {ss_html}
+        </div>
+        """
+
+    # 🔥 MIX AD LINKS & SHUFFLE
     final_ad_list = list(ad_links_list)
     if OWNER_AD_LINKS:
         final_ad_list.extend(OWNER_AD_LINKS)
-    
     random.shuffle(final_ad_list) 
 
     style_html = """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
-        body { margin: 0; padding: 10px; background-color: #121212; font-family: 'Poppins', sans-serif; color: #fff; }
+        body { margin: 0; padding: 10px; background-color: #050505; font-family: 'Poppins', sans-serif; color: #fff; }
+        
         .main-card {
-            max-width: 600px; margin: 0 auto; background: #1e1e1e;
+            max-width: 600px; margin: 0 auto; background: #121212;
             border: 1px solid #333; border-radius: 15px; padding: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5); text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.8); text-align: center;
         }
+        
         .poster-img {
             width: 100%; max-width: 250px; border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5); margin-bottom: 15px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.7); margin-bottom: 15px;
+            border: 2px solid #333;
         }
-        h2 { color: #00d2ff; margin: 10px 0; font-size: 22px; font-weight: 700; }
-        p { text-align: justify; color: #bbb; font-size: 13px; margin-bottom: 20px; line-height: 1.5; }
         
-        .dl-item { background: #252525; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #333; }
+        h2 { color: #00d2ff; margin: 10px 0; font-size: 22px; font-weight: 700; text-shadow: 0 0 10px rgba(0, 210, 255, 0.5); }
+        p { text-align: justify; color: #ccc; font-size: 13px; margin-bottom: 20px; line-height: 1.6; }
+        
+        /* 🔥 NEON SCREENSHOT STYLES */
+        .ss-container { margin: 25px 0; }
+        .neon-ss {
+            width: 100%; border-radius: 8px; margin-bottom: 12px;
+            border: 2px solid #ff00de; /* Pink Neon Border */
+            box-shadow: 0 0 15px rgba(255, 0, 222, 0.3); /* Neon Glow */
+            transition: transform 0.3s ease;
+        }
+        .neon-ss:hover { transform: scale(1.02); }
+
+        .dl-item { background: #1f1f1f; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #333; }
         .dl-link-label { display: block; font-size: 16px; color: #ffeb3b; margin-bottom: 10px; font-weight: 600; text-transform: uppercase; }
         
-        /* 🔥 Optimized Gradient Button */
         .rgb-btn {
             width: 100%; padding: 14px; font-size: 18px; font-weight: bold;
             color: white; border: none; border-radius: 8px; cursor: pointer;
             background: linear-gradient(45deg, #FF512F, #DD2476);
             box-shadow: 0 4px 10px rgba(221, 36, 118, 0.4);
-            transition: all 0.3s ease; text-decoration: none; display: inline-block;
-            display: flex; align-items: center; justify-content: center; gap: 10px;
+            transition: all 0.3s ease; text-decoration: none; display: flex; 
+            align-items: center; justify-content: center; gap: 10px;
         }
         .rgb-btn:active { transform: scale(0.98); }
         .rgb-btn.processing { background: #555; cursor: wait; box-shadow: none; }
         
-        .instruction-box {
-            background: rgba(255,255,255,0.05); padding: 10px; 
-            border-radius: 8px; margin-bottom: 20px; 
-            font-size: 12px; color: #aaa; text-align: left;
-            border-left: 3px solid #ffeb3b;
+        /* 🔥 IMPROVED INSTRUCTION BOX */
+        .instruction-card {
+            background: #000;
+            border: 2px solid #ffeb3b; /* Yellow Border */
+            border-radius: 8px; padding: 15px;
+            margin: 20px 0; text-align: left;
+            box-shadow: 0 4px 10px rgba(255, 235, 59, 0.1);
         }
+        .instruction-card h4 { margin: 0 0 10px 0; color: #ffeb3b; font-size: 16px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #333; padding-bottom: 8px; }
+        .instruction-card ul { padding-left: 20px; margin: 0; }
+        .instruction-card li { color: #eee; font-size: 14px; margin-bottom: 8px; list-style-type: none; position: relative; }
+        .instruction-card li::before { content: "➤"; color: #00e676; position: absolute; left: -20px; }
+        .instruction-card b { color: #fff; font-weight: 700; }
     </style>
     """
 
@@ -422,7 +465,6 @@ def generate_html_code(data, links, ad_links_list):
         links_html += f"""
         <div class="dl-item">
             <span class="dl-link-label">📂 {link['label']}</span>
-            <!-- Unique ID for each button area -->
             <div id="area-{idx}">
                 <button class="rgb-btn" data-clicks="0" onclick="processLink(this, '{link['url']}', 'area-{idx}')">
                     ⬇️ DOWNLOAD / WATCH
@@ -430,7 +472,6 @@ def generate_html_code(data, links, ad_links_list):
             </div>
         </div>"""
 
-    # 🔥 Optimized JavaScript (Fixed .innerHTML for Icons)
     script_html = f"""
     <script>
     const AD_LINKS = {json.dumps(final_ad_list)};
@@ -438,8 +479,6 @@ def generate_html_code(data, links, ad_links_list):
 
     function processLink(btn, realUrl, areaId) {{
         let clicks = parseInt(btn.getAttribute('data-clicks') || 0);
-        
-        // 1. Button Feedback
         btn.innerHTML = "⏳ Verifying..."; 
         btn.classList.add('processing');
         btn.disabled = true;
@@ -449,29 +488,19 @@ def generate_html_code(data, links, ad_links_list):
             btn.classList.remove('processing');
 
             if (clicks < MAX_CLICKS) {{
-                // Open Random Ad
                 let randomAd = AD_LINKS[Math.floor(Math.random() * AD_LINKS.length)];
                 window.open(randomAd, '_blank');
-                
                 btn.setAttribute('data-clicks', clicks + 1);
-                
-                // 🔥 FIX: Using innerHTML allows special characters/icons
                 btn.innerHTML = "&#8635; Click Again (Get Link)"; 
             }} else {{
-                // Success State - Show Green Button
                 btn.style.display = 'none';
                 let area = document.getElementById(areaId);
-                
                 let successBtn = document.createElement('a');
                 successBtn.href = realUrl;
                 successBtn.className = 'rgb-btn';
-                successBtn.style.background = '#00C853'; // Green
-                successBtn.style.backgroundImage = 'none';
+                successBtn.style.background = '#00C853'; 
                 successBtn.style.boxShadow = '0 4px 10px rgba(0, 200, 83, 0.4)';
-                
-                // 🔥 FIX: Using innerHTML here too
                 successBtn.innerHTML = "&#9989; OPEN LINK";
-                
                 successBtn.target = "_blank";
                 area.appendChild(successBtn);
             }}
@@ -481,18 +510,22 @@ def generate_html_code(data, links, ad_links_list):
     """
 
     return f"""
-    <!-- Optimized Bot Post -->
+    <!-- Updated Post with Neon Screenshots -->
     {style_html}
     <div class="main-card">
         <img src="{poster}" class="poster-img">
         <h2>{title}</h2>
         <p>{overview[:350]}...</p>
         
-        <div class="instruction-box">
-            ℹ️ <b>How to Download:</b><br>
-            1. Click the <b>Download</b> button.<br>
-            2. If an ad opens, verify and go back.<br>
-            3. Click the <b>Green Button</b> to get link.
+        {ss_section}
+        
+        <div class="instruction-card">
+            <h4>ℹ️ How to Download</h4>
+            <ul>
+                <li>Click the <b>Download</b> button above.</li>
+                <li>Wait for verification (if ad opens, press back).</li>
+                <li>Click the <b>Green Button</b> to get the link.</li>
+            </ul>
         </div>
 
         <div class="dl-container-area">{links_html}</div>
@@ -608,8 +641,8 @@ except Exception as e:
 async def start_cmd(client, message):
     user_conversations.pop(message.from_user.id, None)
     await message.reply_text(
-        "🎬 **Movie & Series Bot (Fixed Icons & Speed v22)**\n\n"
-        "⚡ `/post <Link or Name>` - Auto Post\n"
+        "🎬 **Movie & Series Bot (Neon Screenshots Added)**\n\n"
+        "⚡ `/post <Link or Name>` - Auto Post (With Screenshots)\n"
         "✍️ `/manual` - Custom Manual Post\n"
         "🛠 `/mysettings` - View Your Ad Links\n"
         "⚙️ `/setadlink <URL1> <URL2>` - Set Ad Links"
@@ -858,5 +891,5 @@ if __name__ == "__main__":
     ping_thread.daemon = True
     ping_thread.start()
     
-    print("🚀 Bot Started (Fixed Icons & Speed v22)!")
+    print("🚀 Bot Started (Neon Screenshots & Instructions v24)!")
     bot.run()
