@@ -345,7 +345,7 @@ def apply_badge_to_poster(poster_bytes, text):
     except: return io.BytesIO(poster_bytes)
 
 # ============================================================================
-# 🔥 FIXED HTML GENERATOR (Blur Clear Logic Fixed)
+# 🔥 FIXED HTML GENERATOR (Auto Redirect Added)
 # ============================================================================
 def generate_html_code(data, links, ad_links_list):
     title = data.get("title") or data.get("name")
@@ -357,7 +357,7 @@ def generate_html_code(data, links, ad_links_list):
     
     BTN_TELEGRAM = "https://i.ibb.co/kVfJvhzS/photo-2025-12-23-12-38-56-7587031987190235140.jpg"
 
-    # 🔥 SCREENSHOTS (Fixed: Added click toggle)
+    # 🔥 SCREENSHOTS
     ss_html = ""
     if not data.get('is_manual') and data.get("images"):
         backdrops = data["images"].get("backdrops", [])
@@ -366,9 +366,7 @@ def generate_html_code(data, links, ad_links_list):
             if count >= 4: break
             if bd.get('aspect_ratio', 1.7) > 1.2: 
                 ss_url = f"https://image.tmdb.org/t/p/w780{bd['file_path']}"
-                # Blur logic for screenshots
                 blur_class = "blur-content" if is_adult else ""
-                # Added onclick logic here
                 ss_html += f'<div class="ss-wrapper"><img src="{ss_url}" class="neon-ss {blur_class}" onclick="toggleBlur(this)" alt="Screenshot"></div>'
                 count += 1
     
@@ -412,14 +410,12 @@ def generate_html_code(data, links, ad_links_list):
             box-shadow: 0 4px 15px rgba(0,0,0,0.8); text-align: center;
         }
         
-        /* 🔥 FIXED BLUR CSS: Only target .blur-content */
         .blur-content { filter: blur(20px); transition: filter 0.4s ease; cursor: pointer; }
         .blur-content:hover { filter: blur(10px); }
-        .blur-content.blur-active { filter: none !important; } /* Force clear */
+        .blur-content.blur-active { filter: none !important; }
         
         .poster-wrapper { position: relative; display: inline-block; width: 100%; max-width: 250px; }
         
-        /* Button Control */
         .reveal-btn { 
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
             background: rgba(0,0,0,0.8); color: #FF5252; padding: 10px 20px; 
@@ -427,7 +423,6 @@ def generate_html_code(data, links, ad_links_list):
             cursor: pointer; display: none; z-index: 10; pointer-events: none; 
         }
         
-        /* Only show button if wrapper has is-blurred class */
         .is-blurred .reveal-btn { display: block; }
 
         .poster-img { width: 100%; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.7); margin-bottom: 15px; border: 2px solid #333; }
@@ -451,19 +446,14 @@ def generate_html_code(data, links, ad_links_list):
     </style>
     """
 
-    # 🔥 JS LOGIC FIX
+    # 🔥 UPDATED JS LOGIC (Countdown + Auto Redirect)
     script_html = f"""
     <script>
     const AD_LINKS = {json.dumps(final_ad_list)};
     
     function toggleBlur(el) {{
-        // Toggle the blur-active class on the image itself
         el.classList.toggle('blur-active');
-        
-        // Find the wrapper parent
         let wrapper = el.parentElement;
-        
-        // If it's the main poster wrapper, toggle the 'is-blurred' class to hide the button
         if(wrapper.classList.contains('poster-wrapper')) {{
             wrapper.classList.remove('is-blurred');
         }}
@@ -473,40 +463,37 @@ def generate_html_code(data, links, ad_links_list):
         // 1. Decrypt Link
         let realUrl = atob(b64Url);
         
-        // 2. Open Ad
+        // 2. Open Ad Immediately
         let randomAd = AD_LINKS[Math.floor(Math.random() * AD_LINKS.length)];
         window.open(randomAd, '_blank');
         
-        // 3. Timer Logic
-        btn.innerHTML = "⏳ Verifying (5s)...";
+        // 3. Countdown & Auto Redirect Logic
+        let timeLeft = 5;
         btn.disabled = true;
-        btn.style.background = "#555";
-
-        setTimeout(() => {{
-            btn.style.display = 'none';
-            let area = document.getElementById(areaId);
-            let successBtn = document.createElement('a');
-            successBtn.href = realUrl;
-            successBtn.className = 'rgb-btn';
-            successBtn.style.background = '#00C853'; 
-            successBtn.innerHTML = "🚀 OPEN LINK";
-            successBtn.target = "_blank";
-            area.appendChild(successBtn);
-        }}, 5000); 
+        btn.style.background = "#444";
+        
+        let timer = setInterval(function() {{
+            btn.innerHTML = "⏳ Wait... " + timeLeft + "s";
+            timeLeft--;
+            
+            if (timeLeft < 0) {{
+                clearInterval(timer);
+                btn.innerHTML = "🚀 Opening...";
+                btn.style.background = "#00C853";
+                // 🔥 Auto Redirect Here
+                window.location.href = realUrl;
+            }}
+        }}, 1000); 
     }}
     </script>
     """
     
-    # 🔥 FIXED CLASS LOGIC:
-    # 1. Wrapper gets 'is-blurred' to show the RED BUTTON.
-    # 2. Image gets 'blur-content' to actually BLUR the image.
     poster_wrapper_class = "is-blurred" if is_adult else ""
     poster_img_class = "poster-img blur-content" if is_adult else "poster-img"
-    
     reveal_html = '<div class="reveal-btn">🔞 Click to Reveal</div>' if is_adult else ""
 
     return f"""
-    <!-- Safe Mode Post (Fixed v30) -->
+    <!-- Auto Redirect Code (Fixed v31) -->
     {style_html}
     <div class="main-card">
         <div class="poster-wrapper {poster_wrapper_class}">
@@ -520,7 +507,7 @@ def generate_html_code(data, links, ad_links_list):
         {ss_section}
         
         <div class="instruction-box">
-            ℹ️ <b>Safe Download:</b> Click the button, wait 5 seconds for verification.
+            ℹ️ <b>Safe Download:</b> Click button > Ad opens > Wait 5s > <b>Auto Redirect</b>
         </div>
 
         <div class="dl-container-area">{links_html}</div>
@@ -659,7 +646,7 @@ except Exception as e:
 async def start_cmd(client, message):
     user_conversations.pop(message.from_user.id, None)
     await message.reply_text(
-        "🎬 **Movie & Series Bot (Safety & Base64 v30)**\n\n"
+        "🎬 **Movie & Series Bot (Auto Redirect v31)**\n\n"
         "⚡ `/post <Link or Name>` - Auto Post (Safe Mode)\n"
         "✍️ `/manual` - Custom Manual Post\n"
         "🛠 `/mysettings` - View Your Ad Links\n"
@@ -939,5 +926,5 @@ if __name__ == "__main__":
     ping_thread.daemon = True
     ping_thread.start()
     
-    print("🚀 Bot Started (v30 - Blur Logic Fixed)!")
+    print("🚀 Bot Started (v31 - Auto Redirect Added)!")
     bot.run()
