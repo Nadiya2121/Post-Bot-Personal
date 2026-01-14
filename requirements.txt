@@ -1,9 +1,11 @@
 pyrogram
 tgcrypto
 aiohttp
-Pillow
-flask
-python-dotenv
 requests
 numpy
 opencv-python-headless
+Pillow
+flask
+python-dotenv
+motor
+dnspython
