@@ -118,7 +118,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "🤖 Bot is Running! (Manual Screenshots & Redirect v32)"
+    return "🤖 Bot is Running! (Multi-Server Upload v33)"
 
 def run_flask():
     app.run(host='0.0.0.0', port=8080)
@@ -168,42 +168,61 @@ def get_font(size=60, bold=False):
         return ImageFont.load_default()
 
 # ====================================================================
-# 🔥 ULTRA POWERFUL UPLOAD FUNCTION (Multi-Server)
+# 🔥 ULTRA POWERFUL UPLOAD FUNCTION (4-Layer Backup System)
 # ====================================================================
 
 def upload_image_core(file_content):
-    # 1. Try 0x0.st (Fastest)
-    try:
-        url = "https://0x0.st"
-        files = {'file': ('image.jpg', file_content)}
-        response = requests.post(url, files=files, timeout=5, verify=False)
-        if response.status_code == 200:
-            return response.text.strip()
-    except: pass 
-
-    # 2. Try Catbox.moe (Reliable)
+    # SERVER 1: Catbox.moe (Most Reliable)
     try:
         url = "https://catbox.moe/user/api.php"
         data = {"reqtype": "fileupload", "userhash": ""}
         files = {"fileToUpload": ("image.png", file_content, "image/png")}
         headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.post(url, data=data, files=files, headers=headers, timeout=6, verify=False)
+        response = requests.post(url, data=data, files=files, headers=headers, timeout=10, verify=False)
         if response.status_code == 200:
+            logger.info("✅ Uploaded to Catbox")
             return response.text.strip()
-    except: pass
+    except Exception as e:
+        logger.warning(f"⚠️ Catbox Failed: {e}")
 
-    # 3. Try Graph.org (Backup)
+    # SERVER 2: 0x0.st (Fastest)
+    try:
+        url = "https://0x0.st"
+        files = {'file': ('image.jpg', file_content)}
+        response = requests.post(url, files=files, timeout=8, verify=False)
+        if response.status_code == 200:
+            logger.info("✅ Uploaded to 0x0.st")
+            return response.text.strip()
+    except Exception as e:
+        logger.warning(f"⚠️ 0x0.st Failed: {e}")
+
+    # SERVER 3: Uguu.se (New Backup)
+    try:
+        url = "https://uguu.se/upload"
+        files = {'files[]': ('image.jpg', file_content)}
+        response = requests.post(url, files=files, timeout=10, verify=False)
+        if response.status_code == 200:
+            json_data = response.json()
+            if json_data.get("success"):
+                logger.info("✅ Uploaded to Uguu.se")
+                return json_data["files"][0]["url"]
+    except Exception as e:
+        logger.warning(f"⚠️ Uguu.se Failed: {e}")
+
+    # SERVER 4: Graph.org (Last Resort)
     try:
         url = "https://graph.org/upload"
         files = {'file': ('image.jpg', file_content, 'image/jpeg')}
         headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.post(url, files=files, headers=headers, timeout=5, verify=False)
+        response = requests.post(url, files=files, headers=headers, timeout=8, verify=False)
         if response.status_code == 200:
             json_data = response.json()
+            logger.info("✅ Uploaded to Graph.org")
             return "https://graph.org" + json_data[0]["src"]
-    except: pass
+    except Exception as e:
+        logger.warning(f"⚠️ Graph.org Failed: {e}")
 
-    logger.error("❌ All upload servers failed.")
+    logger.error("❌ ALL 4 UPLOAD SERVERS FAILED.")
     return None
 
 def upload_to_catbox_bytes(img_bytes):
@@ -673,8 +692,8 @@ except Exception as e:
 async def start_cmd(client, message):
     user_conversations.pop(message.from_user.id, None)
     await message.reply_text(
-        "🎬 **Movie & Series Bot (v32)**\n"
-        "✨ **New:** Manual Screenshots + Auto Redirect\n\n"
+        "🎬 **Movie & Series Bot (v33)**\n"
+        "✨ **New:** Multi-Server Upload (4x Backup)\n\n"
         "⚡ `/post <Link or Name>` - Auto Post\n"
         "✍️ `/manual` - Custom Post (Poster + Screenshots)\n"
         "🛠 `/mysettings` - View Ad Links\n"
@@ -994,5 +1013,5 @@ if __name__ == "__main__":
     ping_thread.daemon = True
     ping_thread.start()
     
-    print("🚀 Bot Started (v32 - Manual Screenshots Added)!")
+    print("🚀 Bot Started (v33 - 4x Upload System)!")
     bot.run()
