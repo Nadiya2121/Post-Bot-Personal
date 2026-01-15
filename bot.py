@@ -47,7 +47,7 @@ TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 # 🔥 ADMIN & DB CONFIG
 MONGO_URL = os.getenv("MONGO_URL") 
 OWNER_ID = int(os.getenv("OWNER_ID", 0)) 
-OWNER_USERNAME = os.getenv("OWNER_USERNAME", "admin") # 🔥 NEW: আপনার ইউজারনেম
+OWNER_USERNAME = os.getenv("OWNER_USERNAME", "admin") 
 LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID", 0))
 
 # Check Variables
@@ -150,7 +150,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "🤖 v37 Bot Running (Contact Button Added)"
+    return "🤖 v37 Bot Running (Image Fix Applied)"
 
 def run_flask():
     app.run(host='0.0.0.0', port=8080)
@@ -200,9 +200,10 @@ def get_font(size=60, bold=False):
         return ImageFont.load_default()
 
 # ====================================================================
-# 🔥 ULTRA POWERFUL UPLOAD FUNCTION (4-Layer Backup System)
+# 🔥 ULTRA POWERFUL UPLOAD FUNCTION (Fixed: Permanent Hosting Only)
 # ====================================================================
 def upload_image_core(file_content):
+    # 1. Try Catbox.moe (Permanent)
     try:
         url = "https://catbox.moe/user/api.php"
         data = {"reqtype": "fileupload", "userhash": ""}
@@ -212,22 +213,7 @@ def upload_image_core(file_content):
         if response.status_code == 200: return response.text.strip()
     except: pass
 
-    try:
-        url = "https://0x0.st"
-        files = {'file': ('image.jpg', file_content)}
-        response = requests.post(url, files=files, timeout=8, verify=False)
-        if response.status_code == 200: return response.text.strip()
-    except: pass
-
-    try:
-        url = "https://uguu.se/upload"
-        files = {'files[]': ('image.jpg', file_content)}
-        response = requests.post(url, files=files, timeout=10, verify=False)
-        if response.status_code == 200:
-            json_data = response.json()
-            if json_data.get("success"): return json_data["files"][0]["url"]
-    except: pass
-
+    # 2. Try Graph.org (Permanent)
     try:
         url = "https://graph.org/upload"
         files = {'file': ('image.jpg', file_content, 'image/jpeg')}
@@ -238,7 +224,9 @@ def upload_image_core(file_content):
             return "https://graph.org" + json_data[0]["src"]
     except: pass
 
-    logger.error("❌ ALL 4 UPLOAD SERVERS FAILED.")
+    # Removed uguu.se and 0x0.st because they delete files after 24 hours
+    
+    logger.error("❌ ALL PERMANENT UPLOAD SERVERS FAILED.")
     return None
 
 def upload_to_catbox_bytes(img_bytes):
@@ -917,5 +905,5 @@ if __name__ == "__main__":
     ping_thread.daemon = True
     ping_thread.start()
     
-    print("🚀 Ultimate Bot Started (v37)!")
+    print("🚀 Ultimate Bot Started (v37 - Image Fix)!")
     bot.run()
