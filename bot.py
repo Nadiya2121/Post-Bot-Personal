@@ -51,6 +51,9 @@ OWNER_ID = int(os.getenv("OWNER_ID", 0))
 OWNER_USERNAME = os.getenv("OWNER_USERNAME", "admin") 
 LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID", 0))
 
+# 🔥 নতুন: ফাইল স্টোর চ্যানেল (অবশ্যই -100 দিয়ে শুরু হতে হবে)
+DB_CHANNEL_ID = int(os.getenv("DB_CHANNEL_ID", 0)) 
+
 # Check Variables
 if not all([BOT_TOKEN, API_ID, API_HASH, TMDB_API_KEY, MONGO_URL]):
     logger.critical("❌ FATAL ERROR: Variables missing in .env file!")
@@ -624,13 +627,43 @@ except Exception as e:
 
 # ---- BOT COMMANDS ----
 
-# 🔥 UPDATED START COMMAND WITH BENGALI TUTORIAL
+# 🔥 UPDATED START COMMAND (FILE DELIVERY + BENGALI TUTORIAL)
 @bot.on_message(filters.command("start") & filters.private)
 async def start_cmd(client, message):
     uid = message.from_user.id
     name = message.from_user.first_name
     await add_user(uid, name) 
     
+    # 🔥 FILE DELIVERY SYSTEM (Start Payload)
+    if len(message.command) > 1:
+        payload = message.command[1]
+        if payload.startswith("get-"):
+            # Check for ban or authorization if needed (Optional)
+            if await is_banned(uid):
+                return await message.reply_text("🚫 **Access Denied:** You are banned.")
+
+            try:
+                if DB_CHANNEL_ID == 0:
+                    return await message.reply_text("❌ System Error: DB_CHANNEL_ID not set.")
+
+                msg_id = int(payload.split("-")[1])
+                temp_msg = await message.reply_text("🔍 **Searching File...**")
+                
+                # Copy message from DB Channel to User
+                await client.copy_message(
+                    chat_id=uid,
+                    from_chat_id=DB_CHANNEL_ID,
+                    message_id=msg_id,
+                    caption=f"🎥 **Here is your file!**\n\n🤖 Powered by {client.me.mention}",
+                    protect_content=True
+                )
+                await temp_msg.delete()
+                return # Stop here, don't show welcome message
+            except Exception as e:
+                logger.error(f"File Fetch Error: {e}")
+                return await message.reply_text("❌ **File Not Found!**\nIt might have been deleted or removed.")
+
+    # Normal Welcome Message
     user_conversations.pop(uid, None)
     
     # 🔥 Check Auth
@@ -653,16 +686,14 @@ async def start_cmd(client, message):
         "2️⃣ **ম্যানুয়াল পোস্ট (Manual Post):**\n"
         "মুভি খুঁজে না পেলে বা নিজের মতো বানাতে:\n"
         "👉 `/manual`\n\n"
-        "3️⃣ **ইনকাম সেটআপ (Ad Setup):**\n"
+        "3️⃣ **ফাইল যোগ করা (File Store):**\n"
+        "পোস্ট বানানোর সময় যখন লিংক চাইবে, তখন **URL** না দিয়ে সরাসরি **ভিডিও ফাইলটি** ফরোয়ার্ড করুন।\n\n"
+        "4️⃣ **ইনকাম সেটআপ (Ad Setup):**\n"
         "আপনার নিজের ডিরেক্ট লিংক সেট করতে:\n"
-        "👉 `/setadlink <আপনার লিংক>`\n"
-        "_(একসাথে একাধিক লিংক দিতে স্পেস ব্যবহার করুন)_\n\n"
-        "4️⃣ **পোস্ট এডিট (Edit):**\n"
+        "👉 `/setadlink <আপনার লিংক>`\n\n"
+        "5️⃣ **পোস্ট এডিট (Edit):**\n"
         "পুরানো পোস্ট এডিট করতে:\n"
         "👉 `/edit <নাম বা ID>`\n\n"
-        "5️⃣ **হিস্টোরি (History):**\n"
-        "আপনার তৈরি করা শেষ ১০টি পোস্ট দেখতে:\n"
-        "👉 `/history`\n\n"
         "🚀 **শুরু করতে যেকোনো একটি কমান্ড দিন!**"
     )
     await message.reply_text(welcome_text)
@@ -894,8 +925,9 @@ async def on_select(client, cb):
         await cb.message.edit_text(f"✅ Selected: **{details.get('title') or details.get('name')}**\n\n🗣️ Enter **Language** (e.g. Hindi):")
     except Exception as e: logger.error(f"Select Error: {e}")
 
-# ---- CONVERSATION HANDLER ----
-@bot.on_message(filters.private & ~filters.command(["start", "post", "manual", "edit", "history", "setadlink", "mysettings", "auth", "ban", "stats", "broadcast", "setownerads", "setshare"]))
+# ---- CONVERSATION HANDLER (MODIFIED FOR FILE STORE) ----
+# 🔥 Filters updated to accept VIDEO & DOCUMENT for File Store
+@bot.on_message(filters.private & (filters.text | filters.video | filters.document) & ~filters.command(["start", "post", "manual", "edit", "history", "setadlink", "mysettings", "auth", "ban", "stats", "broadcast", "setownerads", "setshare"]))
 async def text_handler(client, message):
     uid = message.from_user.id
     if uid not in user_conversations: return
@@ -959,22 +991,47 @@ async def text_handler(client, message):
     elif state == "wait_link_name":
         convo["temp_name"] = text
         convo["state"] = "wait_link_url"
-        await message.reply_text("🔗 Enter **URL** for this button:")
+        await message.reply_text("🔗 **URL** দিন অথবা সরাসরি **ভিডিও ফাইলটি** ফরোয়ার্ড করুন:")
         
     elif state == "wait_link_url":
-        if text.startswith("http"):
-            convo["links"].append({"label": convo["temp_name"], "url": text})
-            # Check if it's edit mode
+        # 🔥 FILE HANDLING LOGIC
+        file_link = None
+        
+        if message.video or message.document:
+            if DB_CHANNEL_ID == 0:
+                return await message.reply_text("❌ Error: DB_CHANNEL_ID not configured in .env")
+            
+            temp_msg = await message.reply_text("⏳ **Saving File to Database...**")
+            try:
+                # Copy file to DB Channel
+                copied_msg = await message.copy(chat_id=DB_CHANNEL_ID)
+                # Generate Bot Start Link
+                bot_username = (await client.get_me()).username
+                file_link = f"https://t.me/{bot_username}?start=get-{copied_msg.id}"
+                await temp_msg.delete()
+            except Exception as e:
+                logger.error(f"File Save Error: {e}")
+                await temp_msg.edit_text("❌ Failed to save file.")
+                return
+
+        elif text.startswith("http"):
+            file_link = text
+
+        if file_link:
+            convo["links"].append({"label": convo["temp_name"], "url": file_link})
+            
+            # Check if edit mode
             if convo.get("post_id"):
                  convo["state"] = "edit_mode"
                  btns = [[InlineKeyboardButton("➕ Add Another", callback_data=f"add_lnk_edit_{uid}")],
                          [InlineKeyboardButton("✅ Generate New Code", callback_data=f"gen_edit_{uid}")]]
-                 await message.reply_text(f"✅ Link Added!\n\nAdd another or Finish?", reply_markup=InlineKeyboardMarkup(btns))
+                 await message.reply_text(f"✅ **Saved!**\nLink: `{file_link}`\n\nAdd another or Finish?", reply_markup=InlineKeyboardMarkup(btns))
             else:
                 convo["state"] = "ask_links"
                 buttons = [[InlineKeyboardButton("➕ Add Another", callback_data=f"lnk_yes_{uid}")], [InlineKeyboardButton("🏁 Finish", callback_data=f"lnk_no_{uid}")]]
-                await message.reply_text(f"✅ Added! Total: {len(convo['links'])}", reply_markup=InlineKeyboardMarkup(buttons))
-        else: await message.reply_text("⚠️ Invalid URL.")
+                await message.reply_text(f"✅ **Saved!**\nLink: `{file_link}`\nTotal: {len(convo['links'])}", reply_markup=InlineKeyboardMarkup(buttons))
+        else:
+            await message.reply_text("⚠️ Invalid Input. Please send a **URL** or **Forward a File**.")
     
     elif state == "wait_badge_text":
         convo["details"]["badge_text"] = text
