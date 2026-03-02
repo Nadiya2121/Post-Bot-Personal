@@ -75,7 +75,7 @@ except Exception as e:
     exit(1)
 
 # ---- DEFAULT SETTINGS ----
-DEFAULT_OWNER_AD_LINKS = [
+DEFAULT_OWNER_AD_LINKS =[
     "https://www.google.com",
     "https://www.bing.com"
 ]
@@ -322,8 +322,8 @@ async def search_tmdb(query):
         
         data = await fetch_url(url)
         if not data: return []
-        return [r for r in data.get("results", []) if r.get("media_type") in ["movie", "tv"]][:15]
-    except: return []
+        return[r for r in data.get("results", []) if r.get("media_type") in ["movie", "tv"]][:15]
+    except: return[]
 
 async def get_tmdb_details(media_type, media_id):
     url = f"https://api.themoviedb.org/3/{media_type}/{media_id}?api_key={TMDB_API_KEY}&append_to_response=credits,similar,images&include_image_language=en,null"
@@ -386,7 +386,7 @@ def apply_badge_to_poster(poster_bytes, text):
         draw = ImageDraw.Draw(base_img)
         cx = pos_x + padding_x
         cy = pos_y + padding_y - 12
-        colors = ["#FFEB3B", "#FF5722"]
+        colors =["#FFEB3B", "#FF5722"]
         words = text.split()
         if len(words) >= 2:
             draw.text((cx, cy), words[0], font=font, fill=colors[0])
@@ -414,7 +414,7 @@ def generate_html_code(data, links, user_ad_links_list, owner_ad_links_list, adm
     lang_str = data.get('custom_language', 'Dual Audio').strip()
     if data.get('is_manual'): genres_str = "Movie / Unknown" 
     else:
-        genres_list = [g['name'] for g in data.get('genres', [])]
+        genres_list = [g['name'] for g in data.get('genres',[])]
         genres_str = ", ".join(genres_list) if genres_list else "Movie"
 
     meta_html = f"""
@@ -429,7 +429,7 @@ def generate_html_code(data, links, user_ad_links_list, owner_ad_links_list, adm
             blur_class = "blur-content" if is_adult else ""
             ss_html += f'<div class="ss-wrapper"><img src="{ss_url}" class="neon-ss {blur_class}" onclick="toggleBlur(this)" alt="Screenshot"></div>'
     elif not data.get('is_manual') and data.get("images"):
-        backdrops = data["images"].get("backdrops", [])
+        backdrops = data["images"].get("backdrops",[])
         count = 0
         for bd in backdrops:
             if count >= 4: break
@@ -453,7 +453,7 @@ def generate_html_code(data, links, user_ad_links_list, owner_ad_links_list, adm
         </div>"""
 
     # 🔥 REVENUE SHARE LOGIC 🔥
-    weighted_ad_list = []
+    weighted_ad_list =[]
     
     if not user_ad_links_list:
         weighted_ad_list = owner_ad_links_list if owner_ad_links_list else ["https://google.com"]
@@ -620,7 +620,7 @@ def generate_image(data):
         if not data.get('is_manual'):
             draw.text((480, 140), f"⭐ {data.get('vote_average', 0):.1f}/10", font=f_reg, fill="#00e676")
             if is_adult: draw.text((480, 180), "⚠️ RESTRICTED CONTENT", font=get_font(18), fill="#FF5252")
-            else: draw.text((480, 180), " | ".join([g["name"] for g in data.get("genres", [])]), font=get_font(18), fill="#00bcd4")
+            else: draw.text((480, 180), " | ".join([g["name"] for g in data.get("genres",[])]), font=get_font(18), fill="#00bcd4")
         
         overview = data.get("overview", "")
         lines = [overview[i:i+80] for i in range(0, len(overview), 80)][:6]
@@ -850,7 +850,7 @@ async def set_ad(client, message):
     if not await is_authorized(uid): return
     if len(message.command) > 1:
         raw_links = message.text.split(None, 1)[1].split()
-        valid_links = [l for l in raw_links if l.startswith("http")]
+        valid_links =[l for l in raw_links if l.startswith("http")]
         if valid_links:
             await save_user_ads(uid, valid_links)
             links_str = "\n".join([f"{i+1}. {l}" for i, l in enumerate(valid_links)])
@@ -862,7 +862,7 @@ async def set_ad(client, message):
 async def manual_post_cmd(client, message):
     uid = message.from_user.id
     if not await is_authorized(uid): return await message.reply_text("🚫 Not Authorized.")
-    user_conversations[uid] = { "details": {"is_manual": True, "manual_screenshots": []}, "links": [], "state": "manual_title" }
+    user_conversations[uid] = { "details": {"is_manual": True, "manual_screenshots": []}, "links":[], "state": "manual_title" }
     await message.reply_text("✍️ **Manual Post Started**\n\nপ্রথমে **টাইটেল (Title)** লিখুন:")
 
 @bot.on_message(filters.command("history") & filters.private)
@@ -944,8 +944,7 @@ async def start_edit_session(uid, post, message):
     links_text = "\n".join([f"{i+1}. {l['label']}" for i, l in enumerate(current_links)])
     msg_txt = f"📝 **Editing:** {details.get('title') or details.get('name')}\n🆔 **ID:** `{pid}`\n\n🔗 **Current Links:**\n{links_text}\n\n👇 **What to do?**"
     
-    btns = [[InlineKeyboardButton("➕ Add New Link", callback_data=f"add_lnk_edit_{uid}")],
-            [InlineKeyboardButton("✅ Generate New Code", callback_data=f"gen_edit_{uid}")]]
+    btns = [[InlineKeyboardButton("➕ Add New Link", callback_data=f"add_lnk_edit_{uid}")],[InlineKeyboardButton("✅ Generate New Code", callback_data=f"gen_edit_{uid}")]]
     
     if isinstance(message, Message): await message.reply_text(msg_txt, reply_markup=InlineKeyboardMarkup(btns))
     else: await message.edit_text(msg_txt, reply_markup=InlineKeyboardMarkup(btns))
@@ -971,19 +970,19 @@ async def post_cmd(client, message):
         if m_type == "imdb":
             find_url = f"https://api.themoviedb.org/3/find/{m_id}?api_key={TMDB_API_KEY}&external_source=imdb_id"
             data = await fetch_url(find_url)
-            results = data.get("movie_results", []) + data.get("tv_results", [])
+            results = data.get("movie_results", []) + data.get("tv_results",[])
             if results: m_type, m_id = results[0]['media_type'], results[0]['id']
             else: return await msg.edit_text("❌ IMDb ID not found in TMDB.")
 
         details = await get_tmdb_details(m_type, m_id)
         if not details: return await msg.edit_text("❌ Details not found.")
-        user_conversations[message.from_user.id] = { "details": details, "links": [], "state": "wait_lang" }
+        user_conversations[message.from_user.id] = { "details": details, "links":[], "state": "wait_lang" }
         await msg.edit_text(f"✅ Found: **{details.get('title') or details.get('name')}**\n\n🗣️ Enter **Language** (e.g. Hindi):")
         return
 
     results = await search_tmdb(query)
     if not results: return await msg.edit_text("❌ No results found.")
-    buttons = []
+    buttons =[]
     for r in results:
         btn_text = f"{r.get('title') or r.get('name')} ({str(r.get('release_date') or '----')[:4]})"
         buttons.append([InlineKeyboardButton(btn_text, callback_data=f"sel_{r['media_type']}_{r['id']}")])
@@ -995,7 +994,7 @@ async def on_select(client, cb):
         _, m_type, m_id = cb.data.split("_")
         details = await get_tmdb_details(m_type, m_id)
         if not details: return await cb.message.edit_text("❌ Details not found.")
-        user_conversations[cb.from_user.id] = { "details": details, "links": [], "state": "wait_lang" }
+        user_conversations[cb.from_user.id] = { "details": details, "links":[], "state": "wait_lang" }
         await cb.message.edit_text(f"✅ Selected: **{details.get('title') or details.get('name')}**\n\n🗣️ Enter **Language** (e.g. Hindi):")
     except Exception as e: logger.error(f"Select Error: {e}")
 
@@ -1030,7 +1029,7 @@ async def text_handler(client, message):
             if img_url:
                 convo["details"]["manual_poster_url"] = img_url
                 convo["state"] = "ask_screenshots"
-                buttons = [[InlineKeyboardButton("📸 Add Screenshots", callback_data=f"ss_yes_{uid}")], [InlineKeyboardButton("⏭️ Skip", callback_data=f"ss_no_{uid}")]]
+                buttons = [[InlineKeyboardButton("📸 Add Screenshots", callback_data=f"ss_yes_{uid}")],[InlineKeyboardButton("⏭️ Skip", callback_data=f"ss_no_{uid}")]]
                 await msg.edit_text(f"✅ Poster Uploaded!\n\n📸 **Add Custom Screenshots?**", reply_markup=InlineKeyboardMarkup(buttons))
             else: await msg.edit_text("❌ Poster Upload Failed.")
         except: await msg.edit_text("❌ Error uploading poster.")
@@ -1059,13 +1058,13 @@ async def text_handler(client, message):
     elif state == "wait_quality":
         convo["details"]["custom_quality"] = text
         convo["state"] = "ask_links"
-        buttons = [[InlineKeyboardButton("➕ Add Links", callback_data=f"lnk_yes_{uid}")], [InlineKeyboardButton("🏁 Finish", callback_data=f"lnk_no_{uid}")]]
+        buttons = [[InlineKeyboardButton("➕ Add Links", callback_data=f"lnk_yes_{uid}")],[InlineKeyboardButton("🏁 Finish", callback_data=f"lnk_no_{uid}")]]
         await message.reply_text("🔗 Add Download Links?", reply_markup=InlineKeyboardMarkup(buttons))
         
-    elif state == "wait_link_name":
+    elif state == "wait_link_name_custom":
         convo["temp_name"] = text
         convo["state"] = "wait_link_url"
-        await message.reply_text("🔗 **URL** দিন অথবা সরাসরি **ভিডিও ফাইলটি** ফরোয়ার্ড করুন:")
+        await message.reply_text(f"✅ বাটনের নাম সেট হয়েছে: **{text}**\n\n🔗 এবার **URL** দিন অথবা সরাসরি **ভিডিও ফাইলটি** ফরোয়ার্ড করুন:")
         
     elif state == "wait_link_url":
         # 🔥 FILE HANDLING LOGIC
@@ -1097,19 +1096,18 @@ async def text_handler(client, message):
             # Check if edit mode
             if convo.get("post_id"):
                  convo["state"] = "edit_mode"
-                 btns = [[InlineKeyboardButton("➕ Add Another", callback_data=f"add_lnk_edit_{uid}")],
-                         [InlineKeyboardButton("✅ Generate New Code", callback_data=f"gen_edit_{uid}")]]
+                 btns = [[InlineKeyboardButton("➕ Add Another", callback_data=f"add_lnk_edit_{uid}")],[InlineKeyboardButton("✅ Generate New Code", callback_data=f"gen_edit_{uid}")]]
                  await message.reply_text(f"✅ **Saved!**\nLink: `{file_link}`\n\nAdd another or Finish?", reply_markup=InlineKeyboardMarkup(btns))
             else:
                 convo["state"] = "ask_links"
-                buttons = [[InlineKeyboardButton("➕ Add Another", callback_data=f"lnk_yes_{uid}")], [InlineKeyboardButton("🏁 Finish", callback_data=f"lnk_no_{uid}")]]
+                buttons = [[InlineKeyboardButton("➕ Add Another", callback_data=f"lnk_yes_{uid}")],[InlineKeyboardButton("🏁 Finish", callback_data=f"lnk_no_{uid}")]]
                 await message.reply_text(f"✅ **Saved!**\nLink: `{file_link}`\nTotal: {len(convo['links'])}", reply_markup=InlineKeyboardMarkup(buttons))
         else:
             await message.reply_text("⚠️ Invalid Input. Please send a **URL** or **Forward a File**.")
     
     elif state == "wait_badge_text":
         convo["details"]["badge_text"] = text
-        buttons = [[InlineKeyboardButton("✅ Safe", callback_data=f"safe_yes_{uid}")], [InlineKeyboardButton("🔞 18+ (Force Blur)", callback_data=f"safe_no_{uid}")]]
+        buttons = [[InlineKeyboardButton("✅ Safe", callback_data=f"safe_yes_{uid}")],[InlineKeyboardButton("🔞 18+ (Force Blur)", callback_data=f"safe_no_{uid}")]]
         await message.reply_text("🛡️ **Safety Check:**", reply_markup=InlineKeyboardMarkup(buttons))
 
 # 🔥 HANDLERS FOR CALLBACKS
@@ -1120,11 +1118,11 @@ async def ss_cb(client, cb):
     if uid != cb.from_user.id: return await cb.answer("Not for you!", show_alert=True)
     if action == "ss_yes":
         user_conversations[uid]["state"] = "wait_screenshots"
-        user_conversations[uid]["details"]["manual_screenshots"] = []
+        user_conversations[uid]["details"]["manual_screenshots"] =[]
         await cb.message.edit_text("📸 **Send Screenshots now.**\n(Send photos one by one)")
     elif action == "ss_no" or action == "ss_done":
         user_conversations[uid]["state"] = "wait_lang"
-        ss_count = len(user_conversations[uid]["details"].get("manual_screenshots", []))
+        ss_count = len(user_conversations[uid]["details"].get("manual_screenshots",[]))
         msg_text = f"✅ Saved {ss_count} screenshots." if action == "ss_done" else "⏭️ Screenshots Skipped."
         await cb.message.edit_text(f"{msg_text}\n\n🗣️ Enter **Language** (e.g. Hindi):")
 
@@ -1135,7 +1133,9 @@ async def link_cb(client, cb):
     if uid != cb.from_user.id: return await cb.answer("Not for you!", show_alert=True)
     if action == "lnk_yes":
         user_conversations[uid]["state"] = "wait_link_name"
-        await cb.message.edit_text("📝 বাটনের নাম লিখুন (Ex: '720p Download'):")
+        btns = [[InlineKeyboardButton("📁 Telegram Files", callback_data=f"setlname_telegram_{uid}")],[InlineKeyboardButton("☁️ Terabox Link", callback_data=f"setlname_terabox_{uid}")],[InlineKeyboardButton("⬇️ Download", callback_data=f"setlname_download_{uid}")],[InlineKeyboardButton("✍️ Custom Name", callback_data=f"setlname_custom_{uid}")]
+        ]
+        await cb.message.edit_text("👇 বাটনের নাম সিলেক্ট করুন অথবা Custom বাটনে ক্লিক করে লিখে দিন:", reply_markup=InlineKeyboardMarkup(btns))
     else:
         user_conversations[uid]["state"] = "wait_badge_text"
         btns = [[InlineKeyboardButton("🚫 Skip Badge (No Text)", callback_data=f"skip_badge_{uid}")]]
@@ -1147,7 +1147,33 @@ async def add_lnk_edit(client, cb):
     uid = int(cb.data.split("_")[-1])
     if uid in user_conversations:
         user_conversations[uid]["state"] = "wait_link_name"
-        await cb.message.edit_text("📝 বাটনের নাম লিখুন (Ex: 'Ep 5 Download'):")
+        btns = [[InlineKeyboardButton("📁 Telegram Files", callback_data=f"setlname_telegram_{uid}")],[InlineKeyboardButton("☁️ Terabox Link", callback_data=f"setlname_terabox_{uid}")],[InlineKeyboardButton("⬇️ Download", callback_data=f"setlname_download_{uid}")],[InlineKeyboardButton("✍️ Custom Name", callback_data=f"setlname_custom_{uid}")]
+        ]
+        await cb.message.edit_text("👇 বাটনের নাম সিলেক্ট করুন অথবা Custom বাটনে ক্লিক করে লিখে দিন:", reply_markup=InlineKeyboardMarkup(btns))
+
+@bot.on_callback_query(filters.regex("^setlname_"))
+async def set_lname_cb(client, cb):
+    try: 
+        _, action, uid = cb.data.split("_")
+        uid = int(uid)
+    except: return
+    if uid not in user_conversations: return
+    
+    if action == "custom":
+        user_conversations[uid]["state"] = "wait_link_name_custom"
+        await cb.message.edit_text("📝 কাস্টম বাটনের নাম লিখুন (Ex: '1080p Download'):")
+    else:
+        name_map = {
+            "telegram": "Telegram Files",
+            "terabox": "Terabox Link",
+            "download": "Download"
+        }
+        selected_name = name_map.get(action, "Download")
+        
+        user_conversations[uid]["temp_name"] = selected_name
+        user_conversations[uid]["state"] = "wait_link_url"
+        
+        await cb.message.edit_text(f"✅ বাটন সিলেক্ট করা হয়েছে: **{selected_name}**\n\n🔗 এবার **URL** দিন অথবা সরাসরি **ভিডিও ফাইলটি** ফরোয়ার্ড করুন:")
 
 @bot.on_callback_query(filters.regex("^gen_edit_"))
 async def gen_edit_finish(client, cb):
@@ -1161,7 +1187,7 @@ async def skip_badge_cb(client, cb):
     uid = int(cb.data.split("_")[-1])
     if uid in user_conversations:
         user_conversations[uid]["details"]["badge_text"] = None
-        buttons = [[InlineKeyboardButton("✅ Safe", callback_data=f"safe_yes_{uid}")], [InlineKeyboardButton("🔞 18+ (Force Blur)", callback_data=f"safe_no_{uid}")]]
+        buttons = [[InlineKeyboardButton("✅ Safe", callback_data=f"safe_yes_{uid}")],[InlineKeyboardButton("🔞 18+ (Force Blur)", callback_data=f"safe_no_{uid}")]]
         await cb.message.edit_text("🛡️ **Safety Check:**\nIs this content 18+/Adult?", reply_markup=InlineKeyboardMarkup(buttons))
 
 @bot.on_callback_query(filters.regex("^safe_"))
