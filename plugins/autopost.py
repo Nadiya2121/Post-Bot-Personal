@@ -1,21 +1,18 @@
-# plugins/autopost.py
 import __main__
 import asyncio
 import re
 import aiohttp
-import logging
 from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
 from pyrogram import filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-logger = logging.getLogger(__name__)
-
-# ডাটাবেস কালেকশন
+# মেইন ফাইল থেকে ডাটাবেস কালেকশন নেওয়া
 db = __main__.db
 user_setup_col = db["user_autopost_configs"]
 
-# --- 🛠️ হেল্পার ফাংশনস ---
+# --- হেল্পার ফাংশনস ---
+
 def is_valid_url(url):
     """লিঙ্কটি সঠিক কি না তা যাচাই করে"""
     if not url or not isinstance(url, str):
@@ -24,25 +21,24 @@ def is_valid_url(url):
     return all([parsed.scheme, parsed.netloc])
 
 def extract_info_from_blog(content):
-    """ব্লগ কন্টেন্ট থেকে মুভির তথ্য স্মার্টলি বের করে"""
+    """ব্লগ কন্টেন্ট থেকে মুভির তথ্য (Rating, Genre, Year, etc.) বের করে"""
     if not content:
         return {'rating': 'N/A', 'genres': 'Movie', 'lang': 'Dual Audio', 'runtime': 'N/A', 'year': 'N/A'}
     
-    # HTML ট্যাগ রিমুভ করে প্লেইন টেক্সট করা
+    # HTML ট্যাগ রিমুভ করা
     text = re.sub(r'<[^>]+>', ' ', content)
     
-    # 💡 স্মার্ট Regex: লাইন ব্রেক বা অন্য কি-ওয়ার্ড পর্যন্ত টেক্সট ক্যাচ করবে
     info = {}
-    rating = re.search(r'RATING\s*[:\-]\s*([\d\./]+)', text, re.I)
-    genre = re.search(r'GENRE\s*[:\-]\s*(.*?)(?=\s*(?:LANGUAGE|RUNTIME|RELEASE|RATING|$))', text, re.I)
-    lang = re.search(r'LANGUAGE\s*[:\-]\s*(.*?)(?=\s*(?:GENRE|RUNTIME|RELEASE|RATING|$))', text, re.I)
-    runtime = re.search(r'RUNTIME\s*[:\-]\s*(.*?)(?=\s*(?:GENRE|LANGUAGE|RELEASE|RATING|$))', text, re.I)
-    year = re.search(r'RELEASE\s*[:\-]\s*(\d{4})', text, re.I)
+    rating = re.search(r'RATING:\s*([\d\./]+)', text, re.I)
+    genre = re.search(r'GENRE:\s*([^📅🗣⏱]+)', text, re.I)
+    lang = re.search(r'LANGUAGE:\s*([^📅🎭⏱]+)', text, re.I)
+    runtime = re.search(r'RUNTIME:\s*([\d\s\w]+)', text, re.I)
+    year = re.search(r'RELEASE:\s*(\d{4})', text, re.I)
 
     info['rating'] = rating.group(1).strip() if rating else "N/A"
-    info['genres'] = genre.group(1).strip()[:30] if genre else "Movie"
-    info['lang'] = lang.group(1).strip()[:30] if lang else "Dual Audio"
-    info['runtime'] = runtime.group(1).strip()[:15] if runtime else "N/A"
+    info['genres'] = genre.group(1).strip() if genre else "Movie"
+    info['lang'] = lang.group(1).strip() if lang else "Dual Audio"
+    info['runtime'] = runtime.group(1).strip() if runtime else "N/A"
     info['year'] = year.group(1).strip() if year else "N/A"
     
     return info
@@ -63,15 +59,14 @@ def get_caption(title, info):
         f"📥 **ডাউনলোড করতে নিচের লিংকে ক্লিক করুন 👇**"
     )
 
-# --- 🚀 মূল প্লাগইন রেজিস্টার ---
+# --- মূল প্লাগইন রেজিস্টার ---
+
 async def register(bot):
-    print("🎬 Professional Autopost System (Safe Version) Activated!")
+    print("🎬 Professional Autopost System (v5.0 Final) Activated!")
 
     # --- ১. স্মার্ট রিপোস্ট কমান্ড ---
-    @bot.on_message(filters.command("repost") & filters.private)
+    @bot.on_message(filters.command("repost") & filters.private, group=-1)
     async def smart_repost(client, message):
-        if not await __main__.is_authorized(message.from_user.id): return
-        
         try:
             parts = message.text.split()
             if len(parts) < 2:
@@ -84,6 +79,7 @@ async def register(bot):
             status_msg = await message.reply_text("🔍 ডাটাবেস চেক করা হচ্ছে...")
             domain = urlparse(input_link).netloc
             
+            # ইউজারের সেটআপ খোঁজা
             configs = await user_setup_col.find({"user_id": message.from_user.id}).to_list(None)
             target_configs = [cfg for cfg in configs if domain in cfg.get("feed", "")]
 
@@ -100,10 +96,11 @@ async def register(bot):
                     
                     html = await resp.text()
                     
+                    # টাইটেল ও পোস্টার স্ক্র্যাপ করা
                     title_match = re.search(r'<title>(.*?)</title>', html, re.I | re.S)
                     title = title_match.group(1).split('|')[0].split('-')[0].strip() if title_match else "Movie Update"
                     info = extract_info_from_blog(html)
-                    img_match = re.search(r'<img[^>]+src="([^"]+)"', html)
+                    img_match = re.search(r'<img.*?src="(.*?)"', html)
                     poster = img_match.group(1) if img_match else None
                     
                     caption = get_caption(title, info)
@@ -122,21 +119,19 @@ async def register(bot):
                             else: await client.send_message(target_chat, caption, reply_markup=InlineKeyboardMarkup(btns))
                             success_count += 1
                         except Exception as e:
-                            logger.error(f"Error sending to {target_chat}: {e}")
+                            print(f"Error sending to {target_chat}: {e}")
 
                     await status_msg.edit(f"✅ সফলভাবে **{success_count}** টি চ্যানেলে রিপোস্ট করা হয়েছে!")
         except Exception as e:
             await message.reply_text(f"❌ এরর: {str(e)}")
 
     # --- ২. চ্যানেল সেটআপ কমান্ড ---
-    @bot.on_message(filters.command("setup") & filters.private)
+    @bot.on_message(filters.command("setup") & filters.private, group=-1)
     async def setup_handler(client, message):
-        if not await __main__.is_authorized(message.from_user.id): return
-        
         try:
             parts = message.text.split(None, 3)
             if len(parts) < 4:
-                return await message.reply_text("⚠️ **নিয়ম:** `/setup @channel feed_url tutorial_url`\n💡 _feed_url সাধারণত https://yourblog.com/feeds/posts/default হয়।_")
+                return await message.reply_text("⚠️ **নিয়ম:** `/setup @channel feed_url tutorial_url`")
             
             channel, feed, tutorial = parts[1], parts[2], parts[3]
             if not is_valid_url(feed) or not is_valid_url(tutorial):
@@ -147,29 +142,25 @@ async def register(bot):
                 {"$set": {"feed": feed, "tutorial": tutorial, "last_post_id": None}},
                 upsert=True
             )
-            await message.reply_text(f"✅ **সেটআপ সফল!**\nচ্যানেল: {channel}\nএখন থেকে এই ফিডটি অটোমেটিক মনিটর করা হবে।")
+            await message.reply_text(f"✅ **সেটআপ সফল!**\nচ্যানেল: {channel}\nএখন থেকে এই ফিডটি মনিটর করা হবে।")
         except Exception as e:
             await message.reply_text(f"❌ এরর: {e}")
 
     # --- ৩. কনফিগ চেক কমান্ড ---
-    @bot.on_message(filters.command("myconfig") & filters.private)
+    @bot.on_message(filters.command("myconfig") & filters.private, group=-1)
     async def config_handler(client, message):
-        if not await __main__.is_authorized(message.from_user.id): return
-        
         configs = await user_setup_col.find({"user_id": message.from_user.id}).to_list(None)
         if not configs:
             return await message.reply_text("❌ আপনার কোনো একটিভ সেটআপ পাওয়া যায়নি।")
         
-        txt = "⚙️ **আপনার একটিভ অটো-পোস্ট কনফিগসমূহ:**\n\n"
+        txt = "⚙️ **আপনার একটিভ কনফিগসমূহ:**\n\n"
         for i, cfg in enumerate(configs, 1):
             txt += f"{i}. 📢 `{cfg['channel']}`\n🌐 {cfg['feed']}\n\n"
         await message.reply_text(txt, disable_web_page_preview=True)
 
     # --- ৪. সেটআপ ডিলিট কমান্ড ---
-    @bot.on_message(filters.command("delsetup") & filters.private)
+    @bot.on_message(filters.command("delsetup") & filters.private, group=-1)
     async def delete_setup(client, message):
-        if not await __main__.is_authorized(message.from_user.id): return
-        
         try:
             parts = message.text.split()
             if len(parts) < 2:
@@ -177,7 +168,7 @@ async def register(bot):
             
             res = await user_setup_col.delete_one({"user_id": message.from_user.id, "channel": parts[1]})
             if res.deleted_count > 0:
-                await message.reply_text(f"✅ `{parts[1]}` এর সেটআপ মুছে ফেলা হয়েছে। অটো-পোস্ট বন্ধ!")
+                await message.reply_text(f"✅ `{parts[1]}` এর সেটআপ মুছে ফেলা হয়েছে।")
             else:
                 await message.reply_text("❌ এই নামে কোনো সেটআপ পাওয়া যায়নি।")
         except Exception as e:
@@ -189,7 +180,6 @@ async def register(bot):
             try:
                 configs = await user_setup_col.find({}).to_list(None)
                 headers = {"User-Agent": "Mozilla/5.0"}
-                
                 async with aiohttp.ClientSession(headers=headers) as session:
                     for config in configs:
                         try:
@@ -202,28 +192,20 @@ async def register(bot):
                             async with session.get(f_url, timeout=15) as resp:
                                 if resp.status != 200: continue
                                 xml_data = await resp.text()
-                                
-                                # 💡 সেফ XML পার্সিং (ক্র্যাশ রোধ করতে)
-                                try:
-                                    root = ET.fromstring(xml_data)
-                                    ns = {'atom': 'http://www.w3.org/2005/Atom'}
-                                    entries = root.findall('atom:entry', ns)
-                                    if not entries: continue
-                                except Exception as xml_err:
-                                    continue
+                                root = ET.fromstring(xml_data)
+                                ns = {'atom': 'http://www.w3.org/2005/Atom'}
+                                entries = root.findall('atom:entry', ns)
+                                if not entries: continue
                                 
                                 latest = entries[0]
-                                p_id_tag = latest.find('atom:id', ns)
-                                if p_id_tag is None: continue
-                                p_id = p_id_tag.text
-                                
+                                p_id = latest.find('atom:id', ns).text
                                 if p_id != l_id:
                                     title = latest.find('atom:title', ns).text
                                     link = latest.find('atom:link[@rel="alternate"]', ns).attrib['href']
                                     content = latest.find('atom:content', ns).text or ""
                                     
                                     info = extract_info_from_blog(content)
-                                    img_match = re.search(r'<img[^>]+src="([^"]+)"', content)
+                                    img_match = re.search(r'<img.*?src="(.*?)"', content)
                                     poster = img_match.group(1) if img_match else None
                                     
                                     caption = get_caption(title, info)
@@ -236,17 +218,12 @@ async def register(bot):
                                         if poster: await bot.send_photo(target_chat, poster, caption=caption, reply_markup=InlineKeyboardMarkup(btns))
                                         else: await bot.send_message(target_chat, caption, reply_markup=InlineKeyboardMarkup(btns))
                                         
-                                        # আইডি আপডেট করা যাতে একই জিনিস বারবার পোস্ট না হয়
+                                        # আইডি আপডেট করা যাতে রিপোস্ট না হয়
                                         await user_setup_col.update_one({"_id": doc_id}, {"$set": {"last_post_id": p_id}})
-                                        logger.info(f"✅ Auto-posted new content to {target_chat}")
                                     except Exception as e:
-                                        logger.error(f"Auto-post Send Error to {target_chat}: {e}")
-                        except Exception as inner_e: 
-                            continue
-            except Exception as outer_e: 
-                pass
-            
-            await asyncio.sleep(60) # সার্ভার লোড কমাতে ৬০ সেকেন্ড করা হলো
+                                        print(f"Auto-post Error to {target_chat}: {e}")
+                        except: continue
+            except: pass
+            await asyncio.sleep(45) # ৪৫ সেকেন্ড পরপর চেক করবে
 
-    # ব্যাকগ্রাউন্ড টাস্ক রান করা
     asyncio.create_task(monitor_feeds())
