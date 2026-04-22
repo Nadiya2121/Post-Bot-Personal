@@ -46,7 +46,7 @@ def get_beauty_caption(details, pid=None):
         caption += f"📝 **Storyline:** _{plot}_\n\n"
     
     caption += f"**{BTM_BORDER}**\n"
-    caption += f"✨ _Powered by @{__main__.bot.me.username}_"
+    caption += f"✨ _Powered by Movie Bot_"
     return caption
 
 # ==========================================================
@@ -60,23 +60,22 @@ def get_master_css(data):
     
     return f"""
     <style>
-        :root {{ --primary: #E50914; --accent: #00d2ff; --glass: rgba(255, 255, 255, 0.05); }}
+        :root {{ --primary: #E50914; --accent: #00d2ff; }}
         body {{ background: #05060a; {bg_css} background-attachment: fixed; background-size: cover; font-family: 'Segoe UI', Tahoma, sans-serif; color: #eee; margin: 0; padding: 10px; }}
         .app-wrapper {{ max-width: 650px; margin: 20px auto; background: rgba(20, 20, 30, 0.7); backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1); border-radius: 15px; padding: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.8); overflow: hidden; }}
         .info-table {{ width: 100%; border-collapse: collapse; margin: 15px 0; background: rgba(0,0,0,0.3); border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05); }}
         .info-table td {{ padding: 12px; border: 1px solid rgba(255,255,255,0.05); font-size: 14px; }}
         .info-label {{ color: var(--primary); font-weight: bold; text-transform: uppercase; width: 35%; }}
         .batch-section {{ background: linear-gradient(135deg, rgba(229, 9, 20, 0.15), rgba(0, 0, 0, 0.5)); border: 2px dashed var(--primary); border-radius: 15px; padding: 20px; margin: 20px 0; text-align: center; }}
-        .btn-batch {{ background: var(--primary) !important; color: white !important; width: 100% !important; padding: 18px !important; font-size: 18px !important; font-weight: bold !important; border-radius: 12px !important; border: none !important; cursor: pointer; box-shadow: 0 10px 20px rgba(229,9,20,0.4); text-transform: uppercase; letter-spacing: 1px; }}
+        .btn-batch {{ background: var(--primary) !important; color: white !important; width: 100% !important; padding: 18px !important; font-size: 18px !important; font-weight: bold !important; border-radius: 12px !important; border: none !important; cursor: pointer; box-shadow: 0 10px 20px rgba(229,9,20,0.4); text-transform: uppercase; }}
         .server-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 15px; }}
         .tg-btn {{ background: rgba(0, 136, 204, 0.2); border: 1px solid #0088cc; color: #fff; padding: 12px; border-radius: 8px; text-align: center; text-decoration: none; font-size: 13px; font-weight: bold; transition: 0.3s; }}
         .tg-btn:hover {{ background: #0088cc; transform: translateY(-2px); }}
-        .nsfw-blur {{ filter: blur(30px); transition: 0.5s; cursor: pointer; }}
-        .nsfw-blur:active {{ filter: blur(0); }}
     </style>
     """
 
 if not hasattr(__main__, '_pro_master_patched'):
+    # মেইন বটের ফাংশনগুলো রিপ্লেস করা
     __main__.generate_formatted_caption = get_beauty_caption
     original_html_generator = __main__.generate_html_code
 
@@ -90,14 +89,12 @@ if not hasattr(__main__, '_pro_master_patched'):
         plot = data.get('overview', 'Download now')
         is_adult = data.get('adult', False) or data.get('force_adult', False)
 
-        # ১. এসইও এবং ব্লজার থাম্বনেইল ফিক্স
         seo_meta = f"""
         <div style="display:none;"><img src="{poster}" alt="{title}"/></div>
         <script type="application/ld+json">
         {{"@context": "https://schema.org","@type": "Movie","name": "{title}","image": "{poster}","description": "{plot[:150]}"}}
         </script>"""
 
-        # ২. ইনফো টেবিল
         info_html = f"""
         <table class="info-table">
             <tr><td class="info-label">📅 Release</td><td>{year}</td></tr>
@@ -106,7 +103,6 @@ if not hasattr(__main__, '_pro_master_patched'):
             <tr><td class="info-label">⭐ Rating</td><td>{rating}</td></tr>
         </table>"""
 
-        # ৩. লিঙ্ক প্রসেসিং (Batch & Single)
         batch_html = ""
         single_links = ""
         for lnk in links:
@@ -117,9 +113,8 @@ if not hasattr(__main__, '_pro_master_patched'):
             else:
                 single_links += f'<a href="{url}" class="tg-btn">🚀 {lbl}</a>'
 
-        # ৪. পোস্টার (NSFW ব্লার সাপোর্টসহ)
         poster_class = "nsfw-blur" if is_adult else ""
-        poster_html = f'<div style="text-align:center; margin-bottom:20px;"><img src="{poster}" class="{poster_class}" style="width:200px; border-radius:10px; border:2px solid rgba(255,255,255,0.1); box-shadow:0 10px 30px rgba(0,0,0,0.5);"></div>'
+        poster_html = f'<div style="text-align:center; margin-bottom:20px;"><img src="{poster}" class="{poster_class}" style="width:200px; border-radius:10px; border:2px solid rgba(255,255,255,0.1);"></div>'
 
         return f"""
         {get_master_css(data)}
@@ -142,7 +137,8 @@ if not hasattr(__main__, '_pro_master_patched'):
 # ==========================================================
 
 async def register(bot: Client):
-    print("🚀 MASTER PRO V4 (Full Detail + SEO + NSFW + Batch) Activated!")
+    # এখানে বট অবজেক্ট রেজিস্টার করা হচ্ছে
+    print("🚀 MASTER PRO V5 (SEO + NSFW + Batch + Fix) Activated!")
 
 @bot.on_callback_query(filters.regex("^setlname_batch_"))
 async def start_batch(client, cb):
@@ -182,9 +178,12 @@ async def handle_pro_inputs(client, message: Message):
             convo["state"] = "ask_links"
             await message.reply_text("✅ ব্যাচ সম্পন্ন! আর কি লিঙ্ক অ্যাড করবেন?", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("➕ Add Another", callback_data=f"lnk_yes_{uid}"), InlineKeyboardButton("🏁 Finish", callback_data=f"lnk_no_{uid}")]]))
         elif message.video or message.document:
-            copied = await message.copy(chat_id=__main__.DB_CHANNEL_ID)
-            convo["pro_batch_files"].append(copied.id)
-            await message.reply_text(f"✅ ফাইল {len(convo['pro_batch_files'])} যুক্ত হয়েছে।", quote=True)
+            try:
+                copied = await message.copy(chat_id=__main__.DB_CHANNEL_ID)
+                convo["pro_batch_files"].append(copied.id)
+                await message.reply_text(f"✅ ফাইল {len(convo['pro_batch_files'])} যুক্ত হয়েছে।", quote=True)
+            except Exception as e:
+                await message.reply_text(f"❌ এরর: {e}")
 
 # ==========================================================
 # 🔥 ৪. ব্যাচ ফাইল ডেলিভারি সিস্টেম
