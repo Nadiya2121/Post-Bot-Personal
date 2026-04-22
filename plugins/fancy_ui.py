@@ -4,239 +4,213 @@ import json
 import base64
 import random
 
-# --- নতুন জেনারেটর যা মেইন কোডকে পুরোপুরি রিপ্লেস করবে ---
 def new_generate_html_code(data, links, user_ad_links_list, owner_ad_links_list, admin_share_percent=20):
-    # --- মুভির বিস্তারিত তথ্য সংগ্রহ (মেইন কোড থেকে) ---
-    title = data.get("title") or data.get("name") or "N/A"
+    # --- মুভির তথ্য (মেইন কোড থেকে) ---
+    title = data.get("title") or data.get("name") or "Movie"
     overview = data.get("overview", "No plot available.")
     poster = data.get('manual_poster_url') or f"https://image.tmdb.org/t/p/w500{data.get('poster_path')}"
     is_adult = data.get('adult', False) or data.get('force_adult', False)
-    theme = data.get("theme", "netflix")
-
-    # মেটা ডাটা প্রসেসিং
-    if data.get('is_manual'):
-        genres_str = "Custom / Unknown" 
-        year = "N/A"
-        rating = "N/A"
-        runtime_str = "N/A"
-        cast_names = "N/A"
-    else:
-        genres_list = [g['name'] for g in data.get('genres',[])]
-        genres_str = ", ".join(genres_list) if genres_list else "Movie"
-        year = str(data.get("release_date") or data.get("first_air_date") or "----")[:4]
-        rating = f"{data.get('vote_average', 0):.1f}/10"
-        runtime = data.get('runtime') or (data.get('episode_run_time',[0])[0] if data.get('episode_run_time') else "N/A")
-        runtime_str = f"{runtime} min" if runtime != "N/A" else "N/A"
-        cast_list = data.get('credits', {}).get('cast',[])
-        cast_names = ", ".join([c['name'] for c in cast_list[:4]]) if cast_list else "Unknown"
-
-    lang_str = data.get('custom_language', 'Dual Audio').strip()
-
-    # --- থিম অনুযায়ী কালার সেটআপ ---
-    if theme == "netflix":
-        accent = "#E50914"; glow = "rgba(229, 9, 20, 0.5)"
-    elif theme == "prime":
-        accent = "#00A8E1"; glow = "rgba(0, 168, 225, 0.5)"
-    else:
-        accent = "#6200ea"; glow = "rgba(98, 0, 234, 0.5)"
-
-    # --- ট্রেইলার সেকশন ---
-    trailer_html = ""
-    videos = data.get('videos', {}).get('results',[])
-    trailer_key = next((v['key'] for v in videos if v.get('type') == 'Trailer' and v.get('site') == 'YouTube'), None)
-    if trailer_key:
-        trailer_html = f'''<div class="section-title">🎬 OFFICIAL TRAILER</div>
-        <div class="video-container"><iframe src="https://www.youtube.com/embed/{trailer_key}" allowfullscreen></iframe></div>'''
-
-    # --- স্ক্রিনশট সেকশন (NSFW সাপোর্ট সহ) ---
-    screenshots = data.get('manual_screenshots',[])
-    if not screenshots and not data.get('is_manual'):
-        backdrops = data.get('images', {}).get('backdrops',[])
-        screenshots = [f"https://image.tmdb.org/t/p/w780{b['file_path']}" for b in backdrops[:6]] 
     
-    ss_html = ""
-    if screenshots:
-        ss_imgs = ""
-        for img in screenshots:
-            if is_adult:
-                ss_imgs += f'''<div class="nsfw-container" onclick="this.classList.toggle('reveal')">
-                    <img src="{img}" class="blur-img"><div class="nsfw-warning">🔞 CLICK TO VIEW</div></div>'''
-            else:
-                ss_imgs += f'<img src="{img}" class="normal-ss">'
-        ss_html = f'<div class="section-title">📸 MOVIE SCREENSHOTS</div><div class="ss-grid">{ss_imgs}</div>'
+    genres_str = ", ".join([g['name'] for g in data.get('genres', [])]) if data.get('genres') else "N/A"
+    year = str(data.get("release_date") or data.get("first_air_date") or "----")[:4]
+    rating = f"{data.get('vote_average', 0):.1f}/10"
+    runtime = f"{data.get('runtime', 'N/A')} min"
+    lang_str = data.get('custom_language', 'Dual Audio').strip()
+    cast_names = ", ".join([c['name'] for c in data.get('credits', {}).get('cast', [])[:4]]) if data.get('credits') else "Unknown"
 
-    # --- লিঙ্ক গ্রুপিং লজিক (Watch, Download, Original) ---
-    watch_html, dl_html, original_html = "", "", ""
-    quality_groups = {"4K ULTRA HD": [], "1080P FULL HD": [], "720P HD": [], "480P / SD": [], "TELEGRAM FILES": []}
+    # --- লিঙ্ক গ্রুপিং লজিক (আপনার থিমের সাথে সামঞ্জস্য রেখে) ---
+    watch_btns_html = ""
+    download_sections_html = ""
+    quality_groups = {"4K Ultra HD": [], "1080p Full HD": [], "720p HD": [], "480p SD": [], "Telegram Files": []}
+    original_files = []
 
     for link in links:
         lbl = link.get('label', '').upper()
         url = link.get('tg_url') or link.get('url', '')
         enc = base64.b64encode(url.encode()).decode()
         
-        btn_code = f'<button class="rgb-btn" onclick="goToLink(\'{enc}\')">'
-        
+        # বাটন টাইপ নির্ধারণ
         if any(x in lbl for x in ["WATCH", "ONLINE", "STREAM", "প্লে"]):
-            watch_html += f'{btn_code}▶️ {link.get("label")} - Watch Online</button>'
+            watch_btns_html += f'<button class="final-server-btn" style="background:#E50914;" onclick="goToLink(\'{enc}\')">▶️ {link.get("label")} - Stream</button>'
         elif "ORIGINAL" in lbl:
-            original_html += f'{btn_code}⭐ {link.get("label")} - Original File</button>'
+            original_files.append(link)
         else:
-            # কোয়ালিটি অনুযায়ী সর্টিং
             q_found = False
             for q in ["4K", "1080", "720", "480"]:
                 if q in lbl:
                     quality_groups[next(k for k in quality_groups if q in k)].append(link)
                     q_found = True; break
-            if not q_found: quality_groups["TELEGRAM FILES"].append(link)
+            if not q_found: quality_groups["Telegram Files"].append(link)
 
-    # ডাউনলোড বাটন জেনারেট
+    # ডাউনলোড সেকশন জেনারেট
     for q_name, q_links in quality_groups.items():
         if q_links:
-            dl_html += f'<div class="q-header">{q_name}</div>'
+            download_sections_html += f'<div class="quality-title">📺 {q_name}</div><div class="server-grid">'
             for l in q_links:
                 u = l.get('tg_url') or l.get('url')
                 e = base64.b64encode(u.encode()).decode()
-                dl_html += f'<button class="rgb-btn dl-btn" onclick="goToLink(\'{e}\')">📥 {l.get("label")} - Download Now</button>'
+                download_sections_html += f'<button class="final-server-btn" onclick="goToLink(\'{e}\')">📥 {l.get("label")} - Download</button>'
+            download_sections_html += '</div>'
 
-    # --- অ্যাড রেভিনিউ শেয়ার লজিক (মেইন কোড থেকে) ---
+    if original_files:
+        download_sections_html += f'<div class="quality-title" style="background:linear-gradient(90deg, #00C9FF, transparent);">⭐ Original Source Files</div><div class="server-grid">'
+        for ol in original_files:
+            e = base64.b64encode((ol.get('tg_url') or ol.get('url')).encode()).decode()
+            download_sections_html += f'<button class="final-server-btn" style="border-color:#00C9FF;" onclick="goToLink(\'{e}\')">📁 {ol.get("label")} - Original</button>'
+        download_sections_html += '</div>'
+
+    # --- ট্রেইলার ও স্ক্রিনশট ---
+    trailer_html = ""
+    videos = data.get('videos', {}).get('results',[])
+    tk = next((v['key'] for v in videos if v.get('type') == 'Trailer' and v.get('site') == 'YouTube'), None)
+    if tk: trailer_html = f'<div class="section-title">🎬 Official Trailer</div><div class="video-container"><iframe src="https://www.youtube.com/embed/{tk}" allowfullscreen></iframe></div>'
+
+    screenshots = data.get('manual_screenshots', [])
+    if not screenshots and not data.get('is_manual'):
+        screenshots = [f"https://image.tmdb.org/t/p/w780{b['file_path']}" for b in data.get('images', {}).get('backdrops', [])[:6]]
+    
+    ss_html = ""
+    if screenshots:
+        ss_grid = ""
+        for img in screenshots:
+            if is_adult: ss_grid += f'<div class="nsfw-container" onclick="revealNSFW(this)"><img src="{img}" class="nsfw-blur"><div class="nsfw-warning">🔞 18+</div></div>'
+            else: ss_grid += f'<img src="{img}" alt="Screenshot">'
+        ss_html = f'<div class="section-title">📸 Screenshots</div><div class="screenshot-grid">{ss_grid}</div>'
+
+    # Ad revenue share
     weighted_ads = []
-    if not user_ad_links_list:
-        weighted_ads = owner_ad_links_list if owner_ad_links_list else ["https://google.com"]
-    elif not owner_ad_links_list:
-        weighted_ads = user_ad_links_list
+    if not user_ad_links_list: weighted_ads = owner_ad_links_list if owner_ad_links_list else ["https://google.com"]
     else:
         for _ in range(int(admin_share_percent)): weighted_ads.append(random.choice(owner_ad_links_list))
         for _ in range(100 - int(admin_share_percent)): weighted_ads.append(random.choice(user_ad_links_list))
     random.shuffle(weighted_ads)
 
-    # --- ফুল CSS এবং HTML টেমপ্লেট ---
+    # --- ফাইনাল টেমপ্লেট (আপনার টেমপ্লেটের হুবহু ক্লাস বজায় রেখে) ---
     return f"""
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@500;700&display=swap');
-        
-        :root {{ --accent: {accent}; --glow: {glow}; }}
-        body {{ background: #000; margin: 0; padding: 0; font-family: 'Rajdhani', sans-serif; }}
+    <!-- SEO & Metadata -->
+    <div style="height:0px;width:0px;overflow:hidden;visibility:hidden;display:none;float:left;"><img src="{poster}" alt="{title} Thumbnail" /></div>
+    <div style="display:none;font-size:1px;color:rgba(0,0,0,0);line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">🎬 {title} - {overview[:150]}... Download now.</div>
 
-        .app-wrapper {{
-            max-width: 600px; margin: 20px auto; position: relative; padding: 4px;
-            border-radius: 20px; background: #000; overflow: hidden; z-index: 1;
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500&family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        /* RGB Border Container */
+        .rgb-container {{
+            max-width: 650px; margin: 20px auto; position: relative; padding: 4px; border-radius: 20px; background: #000; overflow: hidden;
         }}
-        /* RGB Border Animation */
-        .app-wrapper::before {{
+        .rgb-container::before {{
             content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
             background: conic-gradient(#ff0000, #ff7300, #fffb00, #48ff00, #00ffd5, #002bff, #7a00ff, #ff00c8, #ff0000);
-            animation: rotateRGB 4s linear infinite; z-index: -1;
+            animation: rotateRGB 4s linear infinite;
         }}
         @keyframes rotateRGB {{ 100% {{ transform: rotate(360deg); }} }}
 
-        .inner-content {{ background: #0d0d12; border-radius: 18px; padding: 20px; color: #fff; }}
-
-        /* Info Section */
-        .movie-card {{ display: flex; gap: 15px; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 20px; }}
-        .movie-card img {{ width: 150px; border-radius: 12px; border: 2px solid #333; box-shadow: 0 0 15px var(--glow); }}
-        .meta-data {{ flex: 1; font-size: 15px; line-height: 1.6; }}
-        .meta-data b {{ color: #00ffd5; }}
-
-        .section-title {{
-            background: linear-gradient(90deg, var(--accent), #7a00ff);
-            color: #fff; padding: 10px; text-align: center; border-radius: 8px;
-            font-family: 'Orbitron'; font-size: 14px; margin: 30px 0 15px;
-            box-shadow: 0 0 15px var(--glow); letter-spacing: 1px;
+        .app-wrapper {{
+            font-family: 'Poppins', sans-serif !important; background: #0f1014 !important; border: none !important; border-radius: 18px !important; padding: 20px !important; position: relative; z-index: 1; color: #fff;
         }}
+        .media-badges {{ display: flex; gap: 8px; justify-content: center; margin-bottom: 15px; }}
+        .badge {{ background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; }}
+        
+        .movie-title {{ font-family: 'Oswald', sans-serif !important; font-size: 30px !important; text-align: center; color: #fff; margin-bottom: 20px !important; }}
+        
+        .info-box {{ display: flex; background: rgba(255,255,255,0.03) !important; border-radius: 15px !important; padding: 20px !important; gap: 20px; align-items: center; border: 1px solid rgba(255,255,255,0.05) !important; }}
+        .info-poster img {{ width: 150px !important; border-radius: 10px !important; box-shadow: 0 10px 30px rgba(229, 9, 20, 0.4) !important; }}
+        .info-text {{ flex: 1; font-size: 14px; color: #d1d1d1; }}
+        .info-text span {{ color: #E50914 !important; font-weight: bold; font-size: 12px; }}
 
-        .plot-text {{ background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; border-left: 4px solid var(--accent); color: #ccc; font-size: 14px; text-align: justify; }}
+        .section-title {{ font-size: 18px; color: #fff; margin: 25px 0 10px; border-bottom: 2px solid #E50914; display: inline-block; padding-bottom: 5px; font-weight: bold; }}
+        .plot-box {{ background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; font-size: 14px; line-height: 1.6; text-align: justify; border-left: 4px solid #E50914; }}
 
-        /* Media Elements */
-        .video-container {{ position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 12px; border: 1px solid #333; }}
+        .video-container {{ position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 10px; margin-bottom: 20px; }}
         .video-container iframe {{ position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }}
         
-        .ss-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 10px; }}
-        .normal-ss {{ width: 100%; border-radius: 10px; border: 1px solid #333; transition: 0.3s; }}
-        .normal-ss:hover {{ transform: scale(1.05); z-index: 2; border-color: #00ffd5; }}
+        .screenshot-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }}
+        .screenshot-grid img {{ width: 100%; border-radius: 8px; border: 1px solid #333; }}
 
-        .nsfw-container {{ position: relative; cursor: pointer; border-radius: 10px; overflow: hidden; }}
-        .blur-img {{ width: 100%; filter: blur(25px); transition: 0.5s; display: block; }}
-        .nsfw-warning {{ position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); background: rgba(0,0,0,0.8); color: #ff5252; padding: 5px 10px; border: 1px solid #ff5252; border-radius: 5px; font-weight: bold; font-size: 12px; }}
-        .nsfw-container.reveal .blur-img {{ filter: blur(0); }}
-        .nsfw-container.reveal .nsfw-warning {{ display: none; }}
-
-        /* Buttons & Steps */
-        .q-header {{ color: #00ffd5; font-size: 13px; font-weight: bold; margin: 15px 0 8px; border-left: 3px solid var(--accent); padding-left: 10px; text-transform: uppercase; }}
+        .quality-title {{ background: linear-gradient(90deg, #E50914, transparent) !important; border-radius: 5px !important; padding: 10px 15px !important; font-size: 14px !important; color: #fff !important; margin-top: 20px; }}
+        .server-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }}
         
-        .rgb-btn {{
-            width: 100%; padding: 16px; margin-bottom: 12px; border: 1px solid #333;
-            border-radius: 12px; background: #16161d; color: #fff; font-weight: bold;
-            cursor: pointer; transition: 0.3s; display: block; font-size: 15px; font-family: 'Rajdhani';
-        }}
-        .rgb-btn:hover {{ transform: scale(1.02); border-color: #00ffd5; box-shadow: 0 0 15px #00ffd5; color: #00ffd5; }}
-        .dl-btn {{ border-color: var(--accent); }}
+        .final-server-btn {{ background: #1a1c22 !important; border: 1px solid #333 !important; border-radius: 10px !important; padding: 12px !important; font-size: 13px !important; color: #fff; cursor: pointer; transition: 0.3s; }}
+        .final-server-btn:hover {{ background: #E50914 !important; border-color: #E50914 !important; transform: translateY(-3px); box-shadow: 0 5px 15px rgba(229, 9, 20, 0.4); }}
 
-        .unlock-card {{ background: #1a1a24; padding: 25px; border-radius: 15px; text-align: center; border: 1px dashed #555; }}
-        .progress-bg {{ height: 10px; background: #333; border-radius: 20px; margin: 20px 0; overflow: hidden; }}
-        .progress-fill {{ height: 100%; width: 0%; background: linear-gradient(90deg, #00ffd5, var(--accent)); transition: width 1s linear; }}
+        /* Unlock Step UI */
+        .step-container {{ background: #1a1a24; padding: 25px; border-radius: 15px; text-align: center; border: 1px dashed #444; margin-top: 20px; }}
+        .progress-bar {{ height: 6px; background: #333; border-radius: 10px; margin: 15px 0; overflow: hidden; position: relative; }}
+        .progress-fill {{ height: 100%; width: 0%; background: linear-gradient(90deg, #E50914, #ff5252); transition: width 5s linear; }}
+
+        .action-btns {{ display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }}
+        .main-btn {{ width: 100%; padding: 16px; font-size: 16px; font-weight: bold; color: #fff; border: none; border-radius: 10px; cursor: pointer; transition: 0.3s; }}
+        .btn-red {{ background: linear-gradient(90deg, #E50914, #ff5252); box-shadow: 0 4px 15px rgba(229, 9, 20, 0.4); }}
+        .btn-green {{ background: linear-gradient(90deg, #00C9FF, #92FE9D); color: #000; }}
+
+        .nsfw-blur {{ filter: blur(25px); cursor: pointer; }}
     </style>
 
-    <div class="app-wrapper">
-        <div class="inner-content">
-            <div id="step-1">
-                <div class="movie-card">
-                    <img src="{poster}">
-                    <div class="meta-data">
-                        <h2 style="margin:0 0 10px; font-family:'Orbitron'; font-size:20px; color:#fff;">{title} ({year})</h2>
-                        <div><b>⭐ IMDB:</b> {rating}</div>
-                        <div><b>🎭 Genre:</b> {genres_str}</div>
-                        <div><b>🗣️ Lang:</b> {lang_str}</div>
-                        <div><b>⏱️ Duration:</b> {runtime_str}</div>
-                        <div><b>👥 Cast:</b> {cast_names}</div>
+    <div class="rgb-container">
+        <div class="app-wrapper">
+            <div id="step-1-ui">
+                <div class="media-badges"><div class="badge">Dual Audio</div><div class="badge">HEVC</div><div class="badge">{lang_str}</div></div>
+                <div class="movie-title">{title} ({year})</div>
+                
+                <div class="info-box">
+                    <div class="info-poster"><img src="{poster}"></div>
+                    <div class="info-text">
+                        <div><span>⭐ Rating:</span> {rating}</div>
+                        <div><span>🎭 Genre:</span> {genres_str}</div>
+                        <div><span>🗣️ Lang:</span> {lang_str}</div>
+                        <div><span>⏱️ Runtime:</span> {runtime_str}</div>
+                        <div><span>👥 Cast:</span> {cast_names}</div>
                     </div>
                 </div>
 
-                <div class="section-title">📖 STORYLINE / PLOT</div>
-                <div class="plot-text">{overview}</div>
+                <div class="section-title">📖 Storyline</div>
+                <div class="plot-box">{overview}</div>
 
                 {trailer_html}
                 {ss_html}
 
-                <div class="section-title">📥 DOWNLOAD LINKS</div>
-                <div class="unlock-card">
-                    <div id="step-info" style="color:#00ffd5; font-weight:bold; font-size:16px;">STEP 1: VERIFYING REQUEST...</div>
-                    <div class="progress-bg"><div id="p-bar" class="progress-fill"></div></div>
-                    <button class="rgb-btn" onclick="startUnlock(this)" style="background:var(--accent); border:none; color:white; font-size:17px; box-shadow: 0 5px 15px var(--glow);">🔓 UNLOCK FILES NOW</button>
+                <div class="step-container">
+                    <div id="step-txt" style="color:#ff5252; font-weight:bold; font-size:16px;">STEP 1: UNLOCK DOWNLOAD SERVERS</div>
+                    <div class="progress-bar"><div id="fill" class="progress-fill"></div></div>
+                    <div class="action-btns">
+                        <button class="main-btn btn-red" onclick="startUnlock(this)">🔓 CLICK TO UNLOCK LINKS</button>
+                    </div>
                 </div>
             </div>
 
-            <div id="step-2" style="display:none;">
-                <div style="text-align:center; color:#00ffd5; font-weight:bold; margin-bottom:20px; border:2px solid #00ffd5; padding:15px; border-radius:12px; background:rgba(0,255,213,0.05);">
-                    ✅ STEP 2: DOWNLOAD LINKS UNLOCKED!
-                </div>
-                {watch_html}
-                {dl_html}
-                {original_html}
+            <div id="step-2-ui" style="display:none;">
+                <div style="text-align:center; background:rgba(0,255,100,0.1); padding:10px; border-radius:8px; color:#00e676; font-weight:bold; margin-bottom:20px; border:1px solid #00e676;">✅ STEP 2: LINKS UNLOCKED SUCCESSFULLY</div>
+                {watch_btns_html}
+                {download_sections_html}
             </div>
         </div>
     </div>
 
     <script>
-        const AD_LINKS = {json.dumps(weighted_ads)};
-        function startUnlock(btn) {{
-            window.open(AD_LINKS[Math.floor(Math.random() * AD_LINKS.length)], '_blank');
-            btn.disabled = true; btn.innerHTML = "⌛ Verifying... Please Wait";
-            let p = 0;
-            let iv = setInterval(() => {{
-                p += 20; document.getElementById('p-bar').style.width = p + "%";
-                if(p >= 100) {{
-                    clearInterval(iv);
-                    document.getElementById('step-1').style.display = 'none';
-                    document.getElementById('step-2').style.display = 'block';
-                    window.scrollTo(0,0);
-                }}
-            }}, 1000);
-        }}
-        function goToLink(e) {{ window.location.href = atob(e); }}
+    const AD_LINKS = {json.dumps(weighted_ads)};
+    function startUnlock(btn) {{
+        window.open(AD_LINKS[Math.floor(Math.random() * AD_LINKS.length)], '_blank');
+        btn.disabled = true;
+        btn.innerHTML = "⌛ Verifying Request...";
+        document.getElementById('fill').style.width = "100%";
+        
+        let timeLeft = 5;
+        let timer = setInterval(function() {{
+            timeLeft--;
+            if (timeLeft < 0) {{
+                clearInterval(timer);
+                document.getElementById('step-1-ui').style.display = 'none';
+                document.getElementById('step-2-ui').style.display = 'block';
+                window.scrollTo({{top: 0, behavior: 'smooth'}});
+            }}
+        }}, 1000);
+    }}
+    function goToLink(enc) {{ window.location.href = atob(enc); }}
+    function revealNSFW(c) {{ c.querySelector('img').classList.remove('nsfw-blur'); c.querySelector('.nsfw-warning').style.display='none'; }}
     </script>
     """
 
 async def register(bot):
     main_module = sys.modules['__main__']
     main_module.generate_html_code = new_generate_html_code
-    print("🚀 [PLUGIN] FULL POWER RGB UI SYSTEM LOADED!")
+    print("🚀 [PLUGIN] Original Theme Integrated with RGB & Smart Grouping!")
