@@ -4,8 +4,7 @@ import json
 import base64
 import random
 from pyrogram.handlers import CallbackQueryHandler, MessageHandler
-from pyrogram import filters
-from pyrogram.errors import StopPropagation
+from pyrogram import filters, StopPropagation  # <-- এখানে ইম্পোর্ট ঠিক করা হয়েছে
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # =======================================================
@@ -132,7 +131,7 @@ def advance_pro_ui(data, links, user_ad_links_list, owner_ad_links_list, admin_s
 
     /* RGB Download Buttons */
     .quality-title {{ background: rgba(229, 9, 20, 0.1); border-left: 4px solid #E50914; border-radius: 4px; padding: 8px 15px; font-size: 13px; font-weight: 600; color: #fff; margin-top: 25px; text-transform: uppercase; }}
-    .server-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 15px; }} /* Gap কমানো হয়েছে */
+    .server-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 15px; }} 
     
     .rgb-btn-wrapper {{ position: relative; border-radius: 8px; padding: 2px; background: linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #48ff00, #00ffd5, #002bff, #7a00ff, #ff00c8, #ff0000); background-size: 400%; animation: glowing 20s linear infinite; }}
     .rgb-btn {{ background: #15161c; width: 100%; height: 100%; border: none; border-radius: 6px; padding: 12px; cursor: pointer; transition: 0.3s; display: flex; flex-direction: column; align-items: center; justify-content: center; }}
@@ -207,7 +206,7 @@ function processUnlock() {{
         setTimeout(() => {{
             currentStep = 2;
             btn.disabled = false;
-            btn.style.background = "#00e676"; // বাটন সবুজ হয়ে যাবে
+            btn.style.background = "#00e676";
             btn.style.boxShadow = "0 5px 15px rgba(0, 230, 118, 0.4)";
             btn.innerHTML = "🔓 FINAL UNLOCK (STEP 2)";
             title.innerHTML = "STEP 2: FINAL VERIFICATION";
@@ -238,7 +237,6 @@ function goToLink(e) {{ window.location.href = atob(e); }}
 # ⚙️ ২. BOT LOGIC INTERCEPTOR (MAGIC PLUGIN)
 # =======================================================
 
-# মেইন কোডকে জোড় করে থামানোর জন্য স্পেশাল হ্যান্ডলার
 async def intercept_finish_btn(client, cb):
     try:
         import __main__
@@ -259,7 +257,7 @@ async def intercept_finish_btn(client, cb):
                     [InlineKeyboardButton("⏭️ না, সরাসরি ফিনিশ করুন", callback_data=f"watch_no_{tag}{uid}")]
                 ]
                 await cb.message.edit_text("▶️ **Watch Online Link:**\n\nআপনি কি মুভিটি অনলাইনে প্লে করার জন্য ডিরেক্ট ভিডিও লিঙ্ক (Watch Online) যুক্ত করতে চান?", reply_markup=InlineKeyboardMarkup(btns))
-                raise StopPropagation() # মেইন কোড থামিয়ে দেবে
+                raise StopPropagation()
     except StopPropagation: raise
     except: pass
 
@@ -326,11 +324,10 @@ async def watch_url_handler(client, message):
 # 🚀 ৩. PLUGIN REGISTER
 # =======================================================
 async def register(bot):
-    # ১. HTML জেনারেটর রিপ্লেস
     import __main__
     __main__.generate_html_code = advance_pro_ui
 
-    # ২. StopPropagation দিয়ে মেইন ফাইলকে বাইপাস করার পাওয়ারফুল সিস্টেম
+    # StopPropagation দিয়ে মেইন ফাইলকে বাইপাস করা
     bot.add_handler(CallbackQueryHandler(intercept_finish_btn, filters.regex("^(lnk_no|gen_edit)_")), group=-1)
     bot.add_handler(CallbackQueryHandler(watch_yes_cb, filters.regex("^watch_yes_")), group=-1)
     bot.add_handler(CallbackQueryHandler(watch_no_cb, filters.regex("^watch_no_")), group=-1)
