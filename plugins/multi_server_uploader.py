@@ -5,13 +5,12 @@ import logging
 import time
 import __main__
 import base64
-from pyrogram import Client
 
 logger = logging.getLogger(__name__)
 
-# --- CONFIGURATION (API Keys) ---
-DOODSTREAM_API_KEY = "542876jnkjx49k31k1de4h" 
-STREAMWISH_API_KEY = "534f5100961cd89227dc"
+# --- CONFIGURATION (এপিআই কি গুলো এখানে দিন) ---
+DOODSTREAM_API_KEY = "534f5100961cd89227dc" 
+STREAMWISH_API_KEY = "542876jnkjx49k31k1de4h"
 
 # --- PROGRESS BAR HELPER (10 Sec Interval) ---
 last_update_time = {}
@@ -25,107 +24,132 @@ async def progress_bar(current, total, message, start_time, status_text):
     global last_update_time
     now = time.time()
     msg_id = message.id
-    
-    # প্রতি ১০ সেকেন্ড পর পর আপডেট হবে যাতে টেলিগ্রাম ব্লক না করে
     if msg_id in last_update_time and (now - last_update_time[msg_id]) < 10:
         return
-    
     last_update_time[msg_id] = now
+    
     diff = now - start_time
-    percentage = current * 100 / total
+    percentage = (current * 100) / total
     speed = current / (diff if diff > 0 else 1)
     
-    progress = "[{0}{1}]".format(
-        ''.join(["▰" for i in range(round(percentage / 10))]),
-        ''.join(["▱" for i in range(10 - round(percentage / 10))])
-    )
+    # Elegant Progress Bar
+    progress = "▰" * round(percentage / 10) + "▱" * (10 - round(percentage / 10))
     
-    tmp = f"<b>{status_text}</b>\n\n" \
-          f"<code>{progress} {round(percentage, 2)}%</code>\n" \
-          f"🚀 <b>Speed:</b> {size_format(speed)}/s\n" \
-          f"📦 <b>Process:</b> {size_format(current)} of {size_format(total)}\n" \
-          f"⏱️ <b>Time:</b> {round(diff)}s"
+    tmp = (f"🚀 <b>{status_text}</b>\n\n"
+           f"<code>{progress} {round(percentage, 2)}%</code>\n"
+           f"📊 <b>Speed:</b> {size_format(speed)}/s\n"
+           f"📦 <b>Done:</b> {size_format(current)} / {size_format(total)}\n"
+           f"⏱️ <b>Elapsed:</b> {round(diff)}s")
     
     try: await message.edit_text(tmp)
     except: pass
 
-# --- ADVANCED RGB HTML PATCH (Fixing Recursion) ---
+# --- UPLOAD WITH PROGRESS WRAPPER ---
+async def upload_with_progress(session, url, data, file_path, status_msg, task_name):
+    file_size = os.path.getsize(file_path)
+    start_time = time.time()
+    
+    # কাস্টম রিডার প্রসেস বার দেখানোর জন্য
+    async def file_sender():
+        with open(file_path, 'rb') as f:
+            chunk = f.read(1024*1024) # 1MB chunk
+            read_bytes = 0
+            while chunk:
+                yield chunk
+                read_bytes += len(chunk)
+                await progress_bar(read_bytes, file_size, status_msg, start_time, task_name)
+                chunk = f.read(1024*1024)
+
+    data.add_field('file', file_sender(), filename=os.path.basename(file_path))
+    async with session.post(url, data=data) as resp:
+        return await resp.json()
+
+# --- HTML GENERATOR (পেশাদার RGB বাটন ও আনলক সিস্টেম) ---
 def patched_generate_html_code(data, links, user_ad_links_list, owner_ad_links_list, admin_share_percent=20):
+    # মেইন ফাইলের আনলক লজিক ঠিক রেখে শুধু ডিজাইন পরিবর্তন
     title = data.get("title") or data.get("name")
     poster = data.get('manual_poster_url') or f"https://image.tmdb.org/t/p/w500{data.get('poster_path')}"
     year = str(data.get("release_date") or data.get("first_air_date") or "----")[:4]
-    overview = data.get("overview", "No Plot Available.")
-
-    # RGB NEON CSS
+    
+    # Professional RGB/Neon CSS
     style_css = """
     <style>
-        @keyframes rainbow { 0% { filter: hue-rotate(0deg); } 100% { filter: hue-rotate(360deg); } }
-        @keyframes glow { 0%, 100% { box-shadow: 0 0 10px #ff007f, 0 0 20px #00d2ff; } 50% { box-shadow: 0 0 20px #39ff14, 0 0 40px #9d00ff; } }
-        .download-container { background: #0f0f13; padding: 20px; border-radius: 15px; border: 1px solid #2a2a35; }
-        .btn-box { position: relative; margin-bottom: 20px; border-radius: 12px; padding: 3px; background: linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #48ff00, #00ffd5, #002bff, #7a00ff, #ff00c8, #ff0000); animation: rainbow 5s linear infinite; }
-        .btn-main { background: #1a1a24; display: flex; align-items: center; justify-content: center; padding: 18px; border-radius: 10px; color: #fff; text-decoration: none; font-weight: bold; font-size: 16px; transition: 0.3s; text-transform: uppercase; letter-spacing: 1px; animation: glow 3s ease-in-out infinite; }
-        .btn-main:hover { background: transparent; transform: scale(1.03); color: #fff; }
-        .tg-btn { border: 2px solid #00d2ff; background: #0088cc; }
-        .server-tag { position: absolute; top: -10px; left: 15px; background: #ff007f; color: #fff; padding: 2px 10px; font-size: 10px; border-radius: 5px; font-weight: bold; z-index: 10; }
+        :root { --main-bg: #0f1016; --box-bg: #161b22; --accent: #00d2ff; }
+        .server-grid { display: flex; flex-direction: column; gap: 15px; padding: 10px; }
+        .rgb-box { position: relative; padding: 2px; border-radius: 12px; background: linear-gradient(45deg, #ff0000, #00ff00, #0000ff, #ff0000); background-size: 400%; animation: rgb-glow 10s linear infinite; }
+        @keyframes rgb-glow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        .btn-link { background: #161b22; color: white !important; display: flex; align-items: center; justify-content: center; padding: 16px; border-radius: 10px; text-decoration: none !important; font-weight: bold; font-size: 15px; border: 1px solid #30363d; transition: 0.3s; }
+        .btn-link:hover { background: transparent; transform: scale(1.02); }
+        .tg-btn { border: 2px solid #0088cc; box-shadow: 0 0 10px #0088cc; }
+        .icon { margin-right: 10px; font-size: 20px; }
+        .server-label { position: absolute; top: -10px; left: 15px; background: #238636; color: white; padding: 2px 10px; font-size: 11px; border-radius: 5px; font-weight: bold; }
     </style>
     """
 
-    btn_html = ""
+    server_list_html = ""
     for link in links:
         lbl = link.get('label', 'Download')
         if link.get('tg_url'):
             b64 = base64.b64encode(link['tg_url'].encode('utf-8')).decode('utf-8')
-            btn_html += f'''<div class="btn-box"><span class="server-tag">FASTEST</span><a href="#" class="btn-main tg-btn" onclick="goToLink('{b64}')">✈️ GET IN TELEGRAM FILE</a></div>'''
+            server_list_html += f'''
+            <div class="rgb-box">
+                <span class="server-label">TELEGRAM CLOUD</span>
+                <a href="#" class="btn-link tg-btn" onclick="goToLink('{b64}')">
+                    <span class="icon">✈️</span> GET IN TELEGRAM FILE
+                </a>
+            </div>'''
         else:
             url = link.get('url', '#')
-            btn_html += f'''<div class="btn-box"><span class="server-tag">CLOUD</span><a href="{url}" target="_blank" class="btn-main">🚀 {lbl}</a></div>'''
+            icon = "🎬" if "Watch" in lbl or "Play" in lbl else "🚀"
+            server_list_html += f'''
+            <div class="rgb-box">
+                <span class="server-label">DIRECT SERVER</span>
+                <a href="{url}" target="_blank" class="btn-link">
+                    <span class="icon">{icon}</span> {lbl}
+                </a>
+            </div>'''
 
-    # Complete HTML (No Recursion)
-    return f"""
-    {style_css}
-    <div class="download-container">
-        <h2 style="color:#00d2ff; text-align:center;">{title} ({year})</h2>
-        <img src="{poster}" style="width:100%; border-radius:10px; margin-bottom:20px; border:2px solid #2a2a35;">
-        <p style="color:#d1d1d1; font-size:14px; line-height:1.6;">{overview[:200]}...</p>
-        <div style="margin-top:30px;">{btn_html}</div>
-    </div>
-    <script>function goToLink(b){{window.location.href=atob(b);}}</script>
-    """
+    # মেইন ফাইলের অরিজিনাল স্ট্রাকচার (Unlock logic সহ)
+    original_html = __main__.generate_html_code(data, [], [], [], 0)
+    # বাটন সেকশন রিপ্লেস করা হচ্ছে
+    final_html = original_html.replace('<div class="server-list">', f'{style_css}<div class="server-list">{server_list_html}')
+    return final_html
 
-# --- UPLOADERS (Robust Parallel) ---
-async def up_gofile(p):
+# --- SERVER UPLOADERS (Robust Sequential with Progress) ---
+
+async def up_gofile(path, status):
     try:
         async with aiohttp.ClientSession() as s:
             async with s.get("https://api.gofile.io/servers") as r:
                 srv = (await r.json())["data"]["servers"][0]["name"]
-            d = aiohttp.FormData(); d.add_field('file', open(p, 'rb'))
-            async with s.post(f"https://{srv}.gofile.io/contents/uploadfile", data=d) as r:
-                return f"https://gofile.io/d/{(await r.json())['data']['code']}"
+            url = f"https://{srv}.gofile.io/contents/uploadfile"
+            res = await upload_with_progress(s, url, aiohttp.FormData(), path, status, "Gofile Uploading")
+            return f"https://gofile.io/d/{res['data']['code']}"
     except: return None
 
-async def up_dood(p):
+async def up_dood(path, status):
     if not DOODSTREAM_API_KEY: return None
     try:
         async with aiohttp.ClientSession() as s:
             async with s.get(f"https://doodapi.com/api/upload/server?key={DOODSTREAM_API_KEY}") as r:
-                u = (await r.json())["result"]
-            d = aiohttp.FormData(); d.add_field('api_key', DOODSTREAM_API_KEY); d.add_field('file', open(p, 'rb'))
-            async with s.post(u, data=d) as r:
-                return f"https://doodstream.com/d/{(await r.json())['result'][0]['filecode']}"
+                url = (await r.json())["result"]
+            data = aiohttp.FormData(); data.add_field('api_key', DOODSTREAM_API_KEY)
+            res = await upload_with_progress(s, url, data, path, status, "DoodStream Uploading")
+            return f"https://doodstream.com/d/{res['result'][0]['filecode']}"
     except: return None
 
-async def up_wish(p):
+async def up_wish(path, status):
     if not STREAMWISH_API_KEY: return None
     try:
         async with aiohttp.ClientSession() as s:
             async with s.get(f"https://api.streamwish.com/api/upload/server?key={STREAMWISH_API_KEY}") as r:
-                u = (await r.json())["result"]
-            d = aiohttp.FormData(); d.add_field('key', STREAMWISH_API_KEY); d.add_field('file', open(p, 'rb'))
-            async with s.post(u, data=d) as r:
-                return f"https://streamwish.com/{(await r.json())['result'][0]['filecode']}"
+                url = (await r.json())["result"]
+            data = aiohttp.FormData(); data.add_field('key', STREAMWISH_API_KEY)
+            res = await upload_with_progress(s, url, data, path, status, "StreamWish Uploading")
+            return f"https://streamwish.com/{res['result'][0]['filecode']}"
     except: return None
 
-# --- PATCHED PROCESSOR ---
+# --- PROCESSOR ---
 async def patched_process_file_upload(client, message, uid, temp_name):
     convo = __main__.user_conversations.get(uid)
     if not convo: return
@@ -133,24 +157,29 @@ async def patched_process_file_upload(client, message, uid, temp_name):
     status = await message.reply_text(f"⏳ <b>Initializing:</b> {temp_name}")
     
     try:
-        # 1. Save TG DB
+        # 1. Telegram DB (Instant)
         cp = await message.copy(__main__.DB_CHANNEL_ID)
         convo["links"].append({"label": f"Telegram: {temp_name}", "tg_url": f"https://t.me/{(await client.get_me()).username}?start=get-{cp.id}"})
         
-        # 2. Download with Progress
+        # 2. Download Progress
         start = time.time()
         path = await message.download(progress=progress_bar, progress_args=(status, start, f"📥 Downloading: {temp_name}"))
         
-        # 3. Parallel Upload
-        await status.edit_text(f"📤 <b>Uploading to Cloud Servers...</b>\n📦 File: {temp_name}")
-        g_task, d_task, w_task = await asyncio.gather(up_gofile(path), up_dood(path), up_wish(path))
+        # 3. Sequential Cloud Uploads with Progress
+        # Gofile
+        g_link = await up_gofile(path, status)
+        if g_link: convo["links"].append({"label": "🚀 High Speed Download", "url": g_link})
         
-        if g_task: convo["links"].append({"label": "High Speed Download", "url": g_task})
-        if d_task: convo["links"].append({"label": "Watch Online (Server 1)", "url": d_task})
-        if w_task: convo["links"].append({"label": "Watch Online (Server 2)", "url": w_task})
+        # Dood
+        d_link = await up_dood(path, status)
+        if d_link: convo["links"].append({"label": "🎬 Watch Online (Server 1)", "url": d_link})
+        
+        # Wish
+        w_link = await up_wish(path, status)
+        if w_link: convo["links"].append({"label": "📺 Watch Online (Server 2)", "url": w_link})
         
         if os.path.exists(path): os.remove(path)
-        await status.edit_text(f"✅ <b>Successfully Processed:</b> {temp_name}\n(Parallel Upload Complete)")
+        await status.edit_text(f"✅ <b>Successfully Processed:</b> {temp_name}\n(All Servers Completed)")
         
     except Exception as e:
         await status.edit_text(f"❌ Error: {e}")
@@ -161,4 +190,4 @@ async def patched_process_file_upload(client, message, uid, temp_name):
 async def register(bot: Client):
     __main__.process_file_upload = patched_process_file_upload
     __main__.generate_html_code = patched_generate_html_code
-    print("🚀 [Plugin] Final 100% Fixed Multi-Server Uploader Activated!")
+    print("🚀 [Plugin] Sequential Uploader with 10s Progress Bar & RGB Buttons Activated!")
